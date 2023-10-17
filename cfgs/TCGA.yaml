@@ -1,0 +1,65 @@
+CKPTS:
+  datasource: TCGA
+  task: "HER2status"  # recurrence or survival
+  exp_code: "blur_baseline_feats2000_ABMIL_lossCE_1WeightedSampling"
+
+  data_root_dir: "/home/cyyan/Projects/HER2proj/results/TCGA_2FeatsCCL_blur" # data directory
+  # 'csv file with slide_id and label information'
+  csv_info_path: "/home/cyyan/Projects/HER2proj/data_TCGABRCA/TCGABRCA_AllSlides_ClinInfo_Status0927.csv"
+  # IF not None, manually specify the set of splits to use
+  split_dir: "/home/cyyan/Projects/HER2proj/results/TCGA_3CaseSplits/her2status_KFoldsCV"
+  results_dir: "/home/cyyan/Projects/HER2proj/models" # results directory (default: ./results)
+  cfg_to_name: "params_setting.txt"
+
+
+TRAIN:
+  model_type:  # ['clam_sb', 'clam_mb', 'mil'] type of model (default: clam_sb, clam w/ single attention branch)
+  encoding_dim: 2048 #'WSI patches encoding dim'
+  model_size: ccl2048  # ['small', 'big', 'ccl2048']' size of model, does not affect mil'
+
+  num_perslide: 2000 # None will cover all samples
+  n_classes: 2 # 'number of classes (4 bins for survival)'
+  label_col: HER2status # label column name, type of survival (OS, DFS, PFI)')
+  loss_func: CE # ['ce_surv', 'nll_surv', 'multi_surv'] 'slide-level classification loss function (default: nll_surv)'
+  alpha_surv:  0.1 # 'How much to weigh uncensored patients between 0 and 1
+  beta_surv:  # beta surv is used only when loss_func is multi_surv; beta val is for ce and 1 - beta is for nll
+
+  log_data: True # log data using tensorboard
+  weighted_sample: True # 'enable weighted sampling
+  
+
+HyperParams:
+  max_epochs: 100 # 'maximum number of epochs to train (default: 200)'
+  batch_size: 1
+  gc: 32 # 'Gradient Accumulation Step.'
+  lr: 0.0001 # 'learning rate (default: 0.0001)'
+  optim: adam  # optimizer, adam sgd adamW radam Lamb
+  scheduler: LinearLR # optimizer scheduler [CosineAnnealingLR CyclicLR LinearLR OneCycleLR StepLR]
+  drop_out: 0.25 # fix BUG, should be a float num, enable dropout (p=0.25)'
+  early_stopping: True  # enable early stopping
+
+  reg: 0.00001 # 'weight decay (default: 1e-5)'
+  lambda_reg: 0.00001 # 'L1-Regularization Strength (Default 1e-5)'
+
+
+CROSSVALIDATAION:
+  times: 1 # number of times (default: 5)
+  t_start: -1 # start time (default: -1, last time)
+  t_end: -1 # end time (default: -1, first time)
+  k: 5 # number of folds (default: 10)
+  k_start: -1 # start fold (default: -1, last fold)
+  k_end: -1 # end fold (default: -1, first fold)
+
+
+CLAM_spec:
+  no_inst_cluster: True # disable instance-level clustering
+  inst_loss: svm # ['svm', 'ce', None] 'instance-level clustering loss function (default: None)'
+  subtyping: False # subtyping problem
+  bag_weight: 0.7 # 'clam: weight coefficient for bag-level loss (default: 0.7)
+  B: 16 # number of positive/negative patches to sample for clam
+
+
+COMMON:
+  gpu: '0'
+  seed: 2020 # 'random seed for reproducible experiment (default: 2020)'
+  workers: 8  # data loader workers
