@@ -83,17 +83,23 @@ prototypical MIL reproduced.
 class ProtoMIL(nn.Module):
     def __init__(self, feature_size=2048, hidden_size=256, cls_hidden_size=16, 
                  num_cluster=64, topk_num = 10, instance_loss_fn=nn.CrossEntropyLoss(), instance_eval=False,
-                 dropout=0.25, output_class=2):
+                 dropout=0.25, output_class=2, similarity_method="Euclidean", aggregation_method="mean"):
         super(ProtoMIL, self).__init__()
         self.num_cluster = num_cluster
         self.topk_num = topk_num
         self.instance_loss_fn = instance_loss_fn
         self.instance_eval = instance_eval
+        self.similarity_method = similarity_method
+        self.aggregation_method = aggregation_method
 
         self.fc3_topk = nn.Linear(feature_size, 2)    
         self.fc2_metric_learning = nn.Linear(feature_size, hidden_size)
 
-        self.rho = nn.Linear(num_cluster, cls_hidden_size)
+        if self.aggregation_method == "weightedsum_prototype":
+            self.rho = nn.Linear(hidden_size, cls_hidden_size)
+        else:
+            self.rho = nn.Linear(num_cluster, cls_hidden_size)
+        
         self.classifier = nn.Sequential(
             nn.ReLU(True),
             nn.Dropout(dropout),
@@ -104,7 +110,7 @@ class ProtoMIL(nn.Module):
         inst_logit = self.fc3_topk(x_path) # N x 2 score for top-k selector
         probs = F.softmax(inst_logit, dim=1)
 
-        origin = True
+        origin = False
         if origin:
             _, m_indices = torch.sort(probs, 0,
                                      descending=True)
@@ -120,16 +126,29 @@ class ProtoMIL(nn.Module):
         p = self.fc2_metric_learning(prototype)
 
         ## Euclidean
-        similarity = self.Euclidean_Similarity(f, p)
-        cmax, _ = torch.max(similarity, dim=1, keepdim=True)
-        similarity = similarity / cmax
-
+        if self.similarity_method == "Euclidean":
+            similarity = self.Euclidean_Similarity(f, p)
+            cmax, _ = torch.max(similarity, dim=1, keepdim=True)
+            similarity = similarity / cmax
+        
         ## SLN Cosine
-        # Cosine
-        #similarity = torch.mm(f, p.transpose(0,1))
-        #similarity = similarity / torch.norm(f, p=2, dim=1, keepdim=True) / torch.norm(p, p=2)
+        elif self.similarity_method == "Cosine":
+            similarity = torch.mm(f, p.transpose(0,1))
+            similarity = similarity / torch.norm(f, p=2, dim=1, keepdim=True) / torch.norm(p, p=2)
 
-        sim_coding = torch.mean(similarity, dim=0, keepdim=True)
+        else:
+            raise NotImplementedError
+        
+        if self.aggregation_method == "mean":
+            sim_coding = torch.mean(similarity, dim=0, keepdim=True) # 1 x p
+
+        elif self.aggregation_method in ["weightedsum_feat", "weightedsum_prototype"]:
+            sim_coding = torch.mm(f.transpose(0,1), similarity) # feats_dim x p
+            if self.aggregation_method == "weightedsum_prototype":
+                sim_coding = torch.mean(sim_coding, dim=1, keepdim=True).t() # 1 x feats_dim
+            else:
+                sim_coding = torch.mean(sim_coding, dim=0, keepdim=True) # 1 x p if mean_dim == 0
+        
         bag_logits = self.classifier(self.rho(sim_coding))
         
         Y_prob = F.softmax(bag_logits, dim = 1)

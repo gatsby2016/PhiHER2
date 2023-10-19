@@ -12,6 +12,8 @@ from models.model_ABMIL import ABMIL
 from models.model_CLAM import CLAM_SB
 from models.transformer import Transformer
 from models.model_PMIL import ProtoMIL
+from models.model_ProtoTrans import ProtoTransformer
+
 from sksurv.metrics import concordance_index_censored, concordance_index_ipcw, brier_score, integrated_brier_score, cumulative_dynamic_auc
 from sksurv.util import Surv
 
@@ -96,7 +98,7 @@ def _init_optim(model, optim_func=None, lr=1e-4, reg=1e-5, scheduler_func=None, 
     return optimizer, scheduler
 
 
-def _init_model(model_type=None, model_size="ccl2048", input_size=2048, drop_out=0., n_classes=2, top_num_inst=1, device="cpu"):
+def _init_model(model_type=None, model_size="ccl2048", input_size=2048, drop_out=0., n_classes=2, top_num_inst=1, n_cluster=1, device="cpu"):
     print('\nInit Model...', end=' ')
     if model_type == "ABMIL":
         model_dict = {"size_arg":model_size, "dropout" : drop_out, "n_classes" : n_classes, "top_num_inst": top_num_inst, "device" : device}
@@ -110,8 +112,11 @@ def _init_model(model_type=None, model_size="ccl2048", input_size=2048, drop_out
         model = CLAM_SB(gate=True, size_arg=model_size, dropout=False, k_sample=32, instance_eval=True, n_classes=n_classes)
     elif model_type == "ProtoMIL":
         model = ProtoMIL(feature_size=input_size, hidden_size=512, cls_hidden_size=128,
-                         num_cluster=1, topk_num=100, instance_eval=True,
-                         dropout=drop_out, output_class=n_classes)
+                         num_cluster=n_cluster, topk_num=top_num_inst, instance_eval=False,
+                         dropout=drop_out, output_class=n_classes, similarity_method="Euclidean", aggregation_method="weightedsum_prototype")
+    elif model_type == "ProtoTransformer":
+        model = ProtoTransformer(feature_size=input_size, hidden_size=512, num_head=4, ff_inner_size=1024,
+                                 num_cluster=n_cluster, attn_dropout=drop_out, dropout=drop_out, output_class=n_classes)
     else:
         raise ValueError('Unsupported model_type:', model_type)
     model = model.to(device)
@@ -121,7 +126,7 @@ def _init_model(model_type=None, model_size="ccl2048", input_size=2048, drop_out
 
 def _init_loaders(args, train_split, val_split, test_split):
 
-    print('\nInit Loaders...', end=' ')
+    print('\nInit Loaders...', end='\n')
     if train_split is not None:
         train_loader = _get_split_loader(args, train_split, training=True, testing=False, weighted=args.weighted_sample, batch_size=args.batch_size)
     else:
@@ -612,31 +617,19 @@ def _step(cur, args, loss_fn, model, optimizer, train_loader, val_loader, test_l
     return results_dict, (val_cindex, val_cindex_ipcw, val_BS, val_IBS, val_iauc, total_loss)
 
 
-def train_val(datasets, timeidx, cur, args):
-    train_split, val_split, test_split = _get_splits(datasets, cur)
-    
-    loss_fn = _init_loss_function(args.loss_func, args.alpha_surv, args.beta_surv, args.device)
-    model = _init_model(args.model_type, args.model_size, args.encoding_dim, args.drop_out, args.n_classes, args.top_num_inst, args.device)
-    optimizer, scheduler = _init_optim(model, args.optim, args.lr, args.reg, args.scheduler, args.max_epochs)
-    _print_network(args.results_dir, model)
-    
-    train_loader, val_loader, test_loader = _init_loaders(args, train_split, val_split, test_split)
-
-    # results_dict, (val_cindex, val_cindex2, val_BS, val_IBS, val_iauc, total_loss) = _step(cur, args, loss_fn, model, optimizer, train_loader, val_loader, test_loader)
-    writer = _init_writer(args.results_dir, cur, args.log_data)
-    
-    print('\nSetup EarlyStopping...', end=' ')
-    if args.early_stopping:
-        early_stopping = EarlyStopping(patience = 50, stop_epoch=300, verbose = True)
-    else:
-        early_stopping = None
-    
-    print('Done!')
-
-    #########################AP cluster for prototype 1017 TODO: 需要保留索引，方便查看；目前这样的cluster num是不固定的；如何接入protoMILmodel
+"""
+AP cluster for prototype only cluster on training loader, in case of val data leak
+TODO: 需要保留索引，方便查看；
+AP cluster 的k num不需要指定 因此对于不同fold不同训练集 产生的cluster num不相同 对于模型的linear层输入dim 需要调整
+"""
+def APcluster_prototypes(train_loader, args, timeidx, cur):
     all_local_cents_feats = torch.Tensor()
-    for batch_idx, (data, label, slide_id) in enumerate(train_loader):
-        _, local_cent_feat = local_cluster_one_slide(data, slide_id=slide_id[0], args=args)
+    # for batch_idx, (data, label, slide_id) in enumerate(train_loader): # FIXME train_loader will be influenced if model size has been initized.
+    #     slide_id = slide_id[0]
+    train_split = train_loader.dataset
+    for idx in range(len(train_split)): # loader的方式已经random打乱，通过split的方式保持了原始数据的顺序；两者已对齐
+        (data, label, slide_id) = train_split[idx]
+        _, local_cent_feat = local_cluster_one_slide(data, slide_id=slide_id, args=args)
         all_local_cents_feats = torch.cat((all_local_cents_feats, local_cent_feat), dim=0)
 
     if False and os.path.exists(os.path.join(args.global_cluster_path, str(timeidx) + "_" + str(cur) + '_global_prototypes.pt')):
@@ -651,17 +644,38 @@ def train_val(datasets, timeidx, cur, args):
                     os.path.join(args.global_cluster_path, str(timeidx) + "_" + str(cur) + '_global_prototypes.pt'))
 
     print("Estimate number of cluster (GLOBAL): ", len(global_cents_feats))
-    global_cents_feats = global_cents_feats.to(args.device)
-    if args.model_type == "ProtoMIL":
-        model.rho = torch.nn.Linear(len(global_cents_feats), model.rho.out_features).to(args.device)
-    # for batch_idx, (data, label, slide_id) in enumerate(val_loader):
-    #     _, _ = local_cluster_one_slide(data, slide_id=slide_id[0], args=args)
+    return global_cents_feats.to(args.device)
+    
+
+def train_val(datasets, timeidx, cur, args):
+    train_split, val_split, test_split = _get_splits(datasets, cur)
+    train_loader, val_loader, test_loader = _init_loaders(args, train_split, val_split, test_split)
+
+    prototype_feats = APcluster_prototypes(train_loader, args, timeidx, cur) # only AP cluster prototypes for training dataset 
+    
+    loss_fn = _init_loss_function(args.loss_func, args.alpha_surv, args.beta_surv, args.device)
+    model = _init_model(args.model_type, args.model_size, args.encoding_dim, 
+                        args.drop_out, args.n_classes, args.top_num_inst, n_cluster=len(prototype_feats), device=args.device)
+    
+    optimizer, scheduler = _init_optim(model, args.optim, args.lr, args.reg, args.scheduler, args.max_epochs)
+    _print_network(args.results_dir, model)
+
+    # results_dict, (val_cindex, val_cindex2, val_BS, val_IBS, val_iauc, total_loss) = _step(cur, args, loss_fn, model, optimizer, train_loader, val_loader, test_loader)
+    writer = _init_writer(args.results_dir, cur, args.log_data)
+    
+    print('\nSetup EarlyStopping...', end=' ')
+    if args.early_stopping:
+        early_stopping = EarlyStopping(patience = 50, stop_epoch=300, verbose = True)
+    else:
+        early_stopping = None
+    
+    print('Done!')
     
     for epoch in range(args.max_epochs):
         train_loop(epoch, model, train_loader, optimizer, scheduler, args.n_classes, writer, loss_fn, l1_reg_all, args.lambda_reg, args.gc,
-                   prototypes=global_cents_feats)
+                   prototypes=prototype_feats)
         stop = validate(cur, epoch, model, val_loader, args.n_classes, 
-                early_stopping, writer, loss_fn, args.results_dir, prototypes=global_cents_feats)
+                early_stopping, writer, loss_fn, args.results_dir, prototypes=prototype_feats)
         if stop: 
             break
 
@@ -670,11 +684,11 @@ def train_val(datasets, timeidx, cur, args):
     else:
         torch.save(model.state_dict(), os.path.join(args.results_dir, "s_{}_checkpoint.pt".format(cur)))
 
-    val_results_dict, val_error, val_auc, acc_logger = summary(model, val_loader, args.n_classes, prototypes=global_cents_feats)
+    val_results_dict, val_error, val_auc, acc_logger = summary(model, val_loader, args.n_classes, prototypes=prototype_feats)
     print('Val error: {:.4f}, ROC AUC: {:.4f}'.format(val_error, val_auc))
 
     if test_loader is not None:
-        test_results_dict, test_error, test_auc, acc_logger = summary(model, test_loader, args.n_classes, prototypes=global_cents_feats)
+        test_results_dict, test_error, test_auc, acc_logger = summary(model, test_loader, args.n_classes, prototypes=prototype_feats)
         print('Test error: {:.4f}, ROC AUC: {:.4f}'.format(test_error, test_auc))
 
         for i in range(args.n_classes):
