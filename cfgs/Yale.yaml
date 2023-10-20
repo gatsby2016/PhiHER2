@@ -1,7 +1,7 @@
 CKPTS:
   datasource: Yale
   task: "HER2status"  # recurrence or survival
-  exp_code: ProtoMIL_cls128_top100_1insteval_0dropout_lossCE_1WSampling # "ABMIL_featsALL_0dropout_lossCE_1WSampling"
+  exp_code: debug # ProtoTransformer_linearcls_keep_embedd_top500 #  ProtoTransformer_linear_cls_keep_embedd_dim # ProtoMIL_weightedsum_prototype_hidden512_top50_0dropout_lossCE_1WSampling 
 
   data_root_dir: "/home/cyyan/Projects/HER2proj/results/Yale_2FeatsCCL" # data directory
   # 'csv file with slide_id and label information'
@@ -13,12 +13,12 @@ CKPTS:
 
 
 TRAIN:
-  model_type:  ProtoMIL # ['CLAM', 'ProtoMIL', 'ABMIL', 'Transformer'] type of model (default: clam_sb, clam w/ single attention branch)
+  model_type:  ProtoTransformer # ['ProtoTransformer', 'CLAM', 'ProtoMIL', 'ABMIL', 'Transformer'] type of model (default: clam_sb, clam w/ single attention branch)
   encoding_dim:  2048 #'WSI patches encoding dim' [1024, 768, 2048]
   model_size: ccl2048  # ['resnet_small', 'ViT_small', 'ccl2048']' size of model, does not affect mil'
 
-  top_num_inst: # sampling `top_num_inst` instances in model forward according to attention scores
-  num_perslide: # None will cover all samples
+  top_num_inst: 1000 # sampling `top_num_inst` instances in model forward according to attention scores, in model 
+  num_perslide: # None will cover all samples, for data sampling, __getitem__
   n_classes: 2 # 'number of classes (4 bins for survival)'
   label_col: HER2status # label column name, type of survival (OS, DFS, PFI)')
   loss_func: CE # ['ce_surv', 'nll_surv', 'multi_surv'] 'slide-level classification loss function (default: nll_surv)'
@@ -69,7 +69,6 @@ CLUSTER:
   global_cluster_path: "/home/cyyan/Projects/HER2proj/results/Yale_3APCluster"
   local_cluster_path: "/home/cyyan/Projects/HER2proj/results/Yale_3APCluster/local_files"
   lamb: 0.25
-  feat_format: ".csv" # ['.csv', '.npy', '.pt']
 
 
 

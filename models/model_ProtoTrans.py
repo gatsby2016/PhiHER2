@@ -1,5 +1,6 @@
 from typing import Any
 import math
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -7,7 +8,7 @@ import torch.nn.functional as F
 from einops import repeat
 
 from .transformer_utils import Attention, FeedForward, PreNorm
-from .model_utils import Attn_Net_Gated
+from .model_utils import Attn_Net_Gated, initialize_weights
 
 
 class TransformerBlocks(nn.Module):
@@ -250,7 +251,7 @@ class MultiHeadCrossAttention(nn.Module):
         self.k_w = nn.Linear(self.input_dim, self.num_head * self.dim_k, bias=False)
         self.v_w = nn.Linear(self.input_dim, self.num_head * self.dim_v, bias=False)
 
-        self.fc = nn.Linear(num_head * self.dim_v, self.input_dim, bias=False)
+        self.fc = nn.Linear(self.num_head * self.dim_v, self.input_dim, bias=False)
 
         self.attention = ScaledDotProductAttention(
             temperature=self.dim_k ** 0.5,
@@ -332,34 +333,163 @@ class MLP(nn.Module):
 
 
 """
+weighted sum classifier for output prototype-based similarity feats
+"""
+class weightedSumClassifier(nn.Module):
+    def __init__(self, input_dim=512, hidden_size=256, dropout=0.0, output_class=2, mean_dim=0):
+        super().__init__()
+
+        self.mean_dim = mean_dim
+        self.mlp_head = nn.Sequential(nn.Linear(input_dim, hidden_size),
+                                      nn.ReLU(True),
+                                      nn.Dropout(dropout),
+                                      nn.Linear(hidden_size, output_class))
+    
+    def forward(self, x): 
+        sim_coding = torch.mean(x, dim=self.mean_dim, keepdim=True)
+        
+        sim_coding = sim_coding.squeeze().unsqueeze(0)
+        b, _ = sim_coding.shape # B x num_cluster (or input_dim)
+
+        logits = self.mlp_head(sim_coding)
+
+        Y_prob = F.softmax(logits, dim = 1)
+        Y_hat = torch.argmax(Y_prob, dim= 1)
+        # Y_hat = torch.topk(logits, 1, dim = 1)[1]
+
+        results_dict = {}
+        return logits, Y_prob, Y_hat, _, results_dict
+    
+
+"""
+# Attention MIL Implementation #
+"""
+class AttenMIL(nn.Module):
+    def __init__(self, input_dim=512, hidden_size=256, dropout=0.0, output_class=2):
+        super(AttenMIL, self).__init__()
+
+        self.attention_net = nn.Sequential(*[nn.Linear(input_dim, hidden_size), 
+                                             nn.ReLU(), 
+                                             nn.Dropout(dropout),
+                                             Attn_Net_Gated(L=hidden_size, D=hidden_size, dropout=dropout, n_classes=1)])
+
+        self.classifier = nn.Sequential(*[nn.Linear(hidden_size, hidden_size), 
+                                          nn.ReLU(), 
+                                          nn.Dropout(dropout), 
+                                          nn.Linear(hidden_size, output_class)])
+        initialize_weights(self)
+
+    def forward(self, x, attention_only=False): 
+        x = x.squeeze() #  N x feats_dim
+        
+        atten_score, h_path = self.attention_net(x) # atten_score: N x 1, h_path: N x hidden_size
+        atten_score = torch.transpose(atten_score, 1, 0)
+        if attention_only:  
+            return atten_score # this is instance-level attention scores
+        
+        h_path = torch.mm(F.softmax(atten_score, dim=1), h_path) # 1 x hidden_size
+
+        logits  = self.classifier(h_path) # logits: [1 x output_class] vector 
+
+        Y_prob = F.softmax(logits, dim = 1)
+        Y_hat = torch.argmax(Y_prob, dim= 1)
+        # Y_hat = torch.topk(logits, 1, dim = 1)[1]
+
+        results_dict = {}
+        return logits, Y_prob, Y_hat, atten_score, results_dict
+    
+
+class inst_selector(nn.Module):
+    def __init__(self, input_dim=2048, inst_num=1, random=False, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.linear = nn.Linear(input_dim, 2)
+        self.inst_num = inst_num
+        self.random = random
+
+    def forward(self, x):
+        if self.inst_num >= len(x):
+            return x
+        
+        if self.random:
+            device = x.device
+            top_idx = torch.Tensor(np.random.choice(len(x), self.inst_num, replace=False)).to(device).type(torch.int64)
+        
+        else:
+            inst_logit = self.linear(x) # N x 2 score for top-k selector
+            probs = F.softmax(inst_logit, dim=1)
+
+            top_idx = torch.topk(probs[:, 1], self.inst_num)[1] # (N, top_num)
+
+        x = torch.index_select(x, dim=0, index=top_idx)
+        return x
+    
+
+"""
 cluster-Prototypes-based Transformer for cls.
 """
 class ProtoTransformer(nn.Module):
-    def __init__(self, feature_size=2048, hidden_size=512, num_head=4,  ff_inner_size=512,
-                 num_cluster=64, topk_num = 10, 
+    def __init__(self, feature_size=2048, embed_size=512, hidden_size=256, num_head=4,
+                 num_cluster=64, inst_num = None, random_inst=False,
                  attn_dropout=0.1, dropout=0.25, output_class=2,
+                 cls_method=None, aux_loss_fn=nn.CrossEntropyLoss(), abmil_branch=False,
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.cls_method = cls_method
+        self.inst_num = inst_num
+        self.abmil_branch = abmil_branch
 
-        self.cross_attn = MultiHeadCrossAttention(num_cluster, num_head, input_dim=feature_size, 
-                                                  dim_k=hidden_size//num_head, dim_v=hidden_size//num_head, 
+        self.projection = nn.Sequential(nn.Linear(feature_size, embed_size, bias=True), nn.ReLU())
+        # self.prototye_projection = nn.Sequential(nn.Linear(feature_size, embed_size, bias=True), nn.ReLU())
+        self.prototye_projection = nn.Linear(feature_size, embed_size, bias=True)
+
+        if self.inst_num is not None:
+            self.inst_selection = inst_selector(input_dim=embed_size, inst_num = self.inst_num, random=random_inst)
+
+        if self.abmil_branch:
+            self.aux_loss_fn = aux_loss_fn
+            self.abmil = AttenMIL(embed_size, hidden_size, dropout, output_class)
+
+        self.cross_attn = MultiHeadCrossAttention(num_cluster, num_head, input_dim=embed_size, 
+                                                  dim_k=embed_size//num_head, dim_v=embed_size//num_head, init_query=False,
                                                   attn_dropout=attn_dropout, dropout=dropout)
-        self.mlp = MLP(feature_size, ff_inner_size, dropout=dropout)
+        self.mlp = MLP(embed_size, hidden_size, dropout=dropout)
 
-        self.transf = Transformer(num_classes=output_class, input_dim=feature_size, depth=1, 
-                            heads=num_head, dim_head=64, hidden_dim=512, 
-                            pool='cls', dropout=dropout, emb_dropout=0., pos_enc=None)
+        if self.cls_method == "trans":
+            self.transf = Transformer(num_classes=output_class, input_dim=embed_size, depth=1, 
+                                      heads=num_head, dim_head=64, hidden_dim=hidden_size, 
+                                      pool='cls', dropout=dropout, emb_dropout=0., pos_enc=None)
+        elif self.cls_method == "cls_keep_prototype_dim":
+            self.transf = weightedSumClassifier(num_cluster, hidden_size, dropout, output_class, mean_dim=1)
+
+        elif self.cls_method == "cls_keep_embedd_dim":
+            self.transf = weightedSumClassifier(embed_size, hidden_size, dropout, output_class, mean_dim=0)
+        elif self.cls_method == "cls_abmil":
+            self.transf = AttenMIL(embed_size, hidden_size, dropout, output_class)
         
     def get_scores(self, x, prototype=None):
+        x = self.projection(x.unsqueeze(0))
+        prototype = self.prototye_projection(prototype)
         attn = self.cross_attn.get_attn(x, prototype)
         # Average scores over heads and tasks
         # Average over tasks is only required for multi-task learning (mnist).
         return attn.mean(dim=1).transpose(1, 2) # B x num_inst x num_prototype
 
     def forward(self, x_feats, prototype=None, label=None):
-        x_feats = x_feats.unsqueeze(0)
-        x = self.cross_attn(x_feats, prototype) # B x num_cluster x feature_size
+        x_feats = self.projection(x_feats)
+        prototype = self.prototye_projection(prototype)
+        
+        if self.inst_num is not None:    
+            x_feats = self.inst_selection(x_feats)          
+
+        x = self.cross_attn(x_feats.unsqueeze(0), prototype) # B x num_cluster x feature_size
         x = self.mlp(x) # B x num_cluster x feature_size
+
         logits, Y_prob, Y_hat, _, results_dict = self.transf(x.squeeze(0))
+
+        if self.abmil_branch and label is not None:  # 目前先把abmil branch放到inst selection 之后
+            abmil_logit, _, _, _, _ = self.abmil(x_feats)
+            aux_abmil_loss = self.aux_loss_fn(abmil_logit, label)
+            results_dict.update({'instance_loss': aux_abmil_loss})
 
         return logits, Y_prob, Y_hat, _, results_dict

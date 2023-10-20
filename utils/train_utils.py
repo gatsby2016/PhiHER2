@@ -115,8 +115,10 @@ def _init_model(model_type=None, model_size="ccl2048", input_size=2048, drop_out
                          num_cluster=n_cluster, topk_num=top_num_inst, instance_eval=False,
                          dropout=drop_out, output_class=n_classes, similarity_method="Euclidean", aggregation_method="weightedsum_prototype")
     elif model_type == "ProtoTransformer":
-        model = ProtoTransformer(feature_size=input_size, hidden_size=512, num_head=4, ff_inner_size=1024,
-                                 num_cluster=n_cluster, attn_dropout=drop_out, dropout=drop_out, output_class=n_classes)
+        model = ProtoTransformer(feature_size=input_size, embed_size=512, hidden_size=256, num_head=4,
+                                 num_cluster=n_cluster, inst_num=top_num_inst, random_inst=False,
+                                 attn_dropout=drop_out, dropout=drop_out, output_class=n_classes,
+                                 cls_method="cls_keep_embedd_dim", abmil_branch=False)
     else:
         raise ValueError('Unsupported model_type:', model_type)
     model = model.to(device)
