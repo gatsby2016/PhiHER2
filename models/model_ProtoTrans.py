@@ -365,9 +365,10 @@ class weightedSumClassifier(nn.Module):
 # Attention MIL Implementation #
 """
 class AttenMIL(nn.Module):
-    def __init__(self, input_dim=512, hidden_size=256, dropout=0.0, output_class=2):
+    def __init__(self, input_dim=512, hidden_size=256, dropout=0.0, inst_num=None, output_class=2):
         super(AttenMIL, self).__init__()
 
+        self.top_num_inst = inst_num
         self.attention_net = nn.Sequential(*[nn.Linear(input_dim, hidden_size), 
                                              nn.ReLU(), 
                                              nn.Dropout(dropout),
@@ -379,9 +380,23 @@ class AttenMIL(nn.Module):
                                           nn.Linear(hidden_size, output_class)])
         initialize_weights(self)
 
-    def forward(self, x, attention_only=False): 
+
+    @torch.no_grad()
+    def iterative_embed_selection(self, x_path, top_num=1):
+        A, _ = self.attention_net(x_path.squeeze())
+        A = torch.transpose(A, 1, 0)
+        A = F.softmax(A, dim=1)
+        top_idx = torch.topk(A, top_num, dim = -1)[1] # (N, top_num)
+        return top_idx
+
+
+    def forward(self, x, attention_only=False, test=False): 
         x = x.squeeze() #  N x feats_dim
-        
+
+        if not test and self.top_num_inst is not None and self.top_num_inst < x.shape[0]:
+            top_idx = self.iterative_embed_selection(x_path=x, top_num=self.top_num_inst)
+            x = torch.index_select(x, dim=0, index=top_idx)
+
         atten_score, h_path = self.attention_net(x) # atten_score: N x 1, h_path: N x hidden_size
         atten_score = torch.transpose(atten_score, 1, 0)
         if attention_only:  
@@ -441,14 +456,13 @@ class ProtoTransformer(nn.Module):
 
         self.projection = nn.Sequential(nn.Linear(feature_size, embed_size, bias=True), nn.ReLU())
         # self.prototye_projection = nn.Sequential(nn.Linear(feature_size, embed_size, bias=True), nn.ReLU())
-        self.prototye_projection = nn.Linear(feature_size, embed_size, bias=True)
 
         if self.inst_num is not None:
             self.inst_selection = inst_selector(input_dim=embed_size, inst_num = self.inst_num, random=random_inst)
 
         if self.abmil_branch:
             self.aux_loss_fn = aux_loss_fn
-            self.abmil = AttenMIL(embed_size, hidden_size, dropout, output_class)
+            self.abmil = AttenMIL(embed_size, hidden_size, dropout, inst_num=self.inst_num, output_class=output_class)
 
         self.cross_attn = MultiHeadCrossAttention(num_cluster, num_head, input_dim=embed_size, 
                                                   dim_k=embed_size//num_head, dim_v=embed_size//num_head, init_query=False,
@@ -469,7 +483,7 @@ class ProtoTransformer(nn.Module):
         
     def get_scores(self, x, prototype=None):
         x = self.projection(x.unsqueeze(0))
-        prototype = self.prototye_projection(prototype)
+        prototype = self.projection(prototype)
         attn = self.cross_attn.get_attn(x, prototype)
         # Average scores over heads and tasks
         # Average over tasks is only required for multi-task learning (mnist).
@@ -477,7 +491,7 @@ class ProtoTransformer(nn.Module):
 
     def forward(self, x_feats, prototype=None, label=None):
         x_feats = self.projection(x_feats)
-        prototype = self.prototye_projection(prototype)
+        prototype = self.projection(prototype)
         
         if self.inst_num is not None:    
             x_feats = self.inst_selection(x_feats)          

@@ -115,7 +115,7 @@ def _init_model(model_type=None, model_size="ccl2048", input_size=2048, drop_out
                          num_cluster=n_cluster, topk_num=top_num_inst, instance_eval=False,
                          dropout=drop_out, output_class=n_classes, similarity_method="Euclidean", aggregation_method="weightedsum_prototype")
     elif model_type == "ProtoTransformer":
-        model = ProtoTransformer(feature_size=input_size, embed_size=512, hidden_size=256, num_head=4,
+        model = ProtoTransformer(feature_size=input_size, embed_size=512, hidden_size=256, num_head=1,
                                  num_cluster=n_cluster, inst_num=top_num_inst, random_inst=False,
                                  attn_dropout=drop_out, dropout=drop_out, output_class=n_classes,
                                  cls_method="cls_keep_embedd_dim", abmil_branch=False)
