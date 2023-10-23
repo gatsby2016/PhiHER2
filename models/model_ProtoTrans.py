@@ -495,7 +495,7 @@ class ProtoTransformer(nn.Module):
 
         if self.inst_num_twice is not None and self.inst_num_twice < x_feats.shape[0]: # inst_selection_twice:
             x_feats = self.abmil.iterative_embed_selection(x_path=x_feats, top_num=self.inst_num_twice)     
-            x_feats = self.inst_selection(x_feats)          
+            # x_feats = self.inst_selection(x_feats)          
 
         x = self.cross_attn(x_feats.unsqueeze(0), prototype) # B x num_cluster x feature_size
         x = self.mlp(x) # B x num_cluster x feature_size
