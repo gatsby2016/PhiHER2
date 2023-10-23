@@ -1,17 +1,17 @@
-# datapath="/mnt/DATA/TCGA/TCGA-BRCA/harmonized/Biospecimen/SVSimage/"
-# patchpath="/home/cyyan/Projects/HER2proj/results/TCGA_1WsiPatching"
-# featspath="/home/cyyan/Projects/HER2proj/results/TCGA_2FeatsCCL_blur"
-# splitspath="/home/cyyan/Projects/HER2proj/results/TCGA_3CaseSplits"
-# csvinfopath="/home/cyyan/Projects/HER2proj/data_TCGABRCA/TCGABRCA_AllSlides_ClinInfo_Status0927.csv"
+datapath="/mnt/DATA/TCGA/TCGA-BRCA/harmonized/Biospecimen/SVSimage/"
+patchpath="/home/cyyan/Projects/HER2proj/results/TCGA_1WsiPatching_20x"
+featspath="/home/cyyan/Projects/HER2proj/results/TCGA_2FeatsCCL_20x"
+splitspath="/home/cyyan/Projects/HER2proj/results/TCGA_3CaseSplits"
+csvinfopath="/home/cyyan/Projects/HER2proj/data_TCGABRCA/TCGABRCA_AllSlides_ClinInfo_Status0927.csv"
 
-datapath="/home/cyyan/Projects/HER2proj/data_ModPath_HER2_v3/pkg_v3/Yale_HER2_cohort/SVS"
-patchpath="/home/cyyan/Projects/HER2proj/results/Yale_1WsiPatching"
-featspath="/home/cyyan/Projects/HER2proj/results/Yale_2FeatsCCL_ctrans"
-splitspath="/home/cyyan/Projects/HER2proj/results/Yale_3CaseSplits"
-csvinfopath="/home/cyyan/Projects/HER2proj/data_ModPath_HER2_v3/Yale_HER2status.csv"
+# datapath="/home/cyyan/Projects/HER2proj/data_ModPath_HER2_v3/pkg_v3/Yale_HER2_cohort/SVS"
+# patchpath="/home/cyyan/Projects/HER2proj/results/Yale_1WsiPatching"
+# featspath="/home/cyyan/Projects/HER2proj/results/Yale_2FeatsCCL_ctrans"
+# splitspath="/home/cyyan/Projects/HER2proj/results/Yale_3CaseSplits"
+# csvinfopath="/home/cyyan/Projects/HER2proj/data_ModPath_HER2_v3/Yale_HER2status.csv"
 
 tocsvpath=$patchpath"/process_list_autogen.csv"
-cclmodelpth="/home/cyyan/Projects/HER2proj/models/ctranspath.pth" # CCL_best_ckpt.pth
+cclmodelpth="/home/cyyan/Projects/HER2proj/models/CCL_best_ckpt.pth" # CCL_best_ckpt.pth ctranspath.pth
 resize_size=224
 # trainrespath="/home/cyyan/Projects/HER2proj/results/train"
 labelname="HER2status"
@@ -41,11 +41,13 @@ python s2_FeatsExtracting.py \
 	--float16
 fi
 
-if false; then
+if true; then
 echo "WsiPatching..."
 python s1_WsiTiling.py \
 	-s  $datapath \
 	-d  $patchpath \
+    -ps 512 \
+    -ss 512 \
 	--patch \
 	--bgtissue \
 	--stitch
@@ -58,12 +60,13 @@ python s2_FeatsExtracting.py \
 	--csv_path $tocsvpath \
 	--h5_dir $patchpath \
     --retccl_filepath $cclmodelpth \
-    --resize_size $resize_size \
 	--slide_dir $datapath \
+    --custom_downsample 2 \
 	--slide_ext ".svs" \
 	--batch_size 320 \
 	--float16
 fi
+# --resize_size $resize_size \
 #--gaussian_blur \
 
 
