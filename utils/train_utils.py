@@ -119,7 +119,7 @@ def _init_model(model_type=None, model_size="ccl2048", input_size=2048, drop_out
         model = ProtoTransformer(feature_size=input_size, embed_size=512, hidden_size=256, num_head=1,
                                  num_cluster=n_cluster, inst_num=top_num_inst, inst_num_twice=top_num_inst_twice, random_inst=False,
                                  attn_dropout=drop_out, dropout=drop_out, output_class=n_classes,
-                                 cls_method="cls_keep_embedd_dim", abmil_branch=True)
+                                 cls_method="cls_keep_embedd_dim", abmil_branch=False)
     else:
         raise ValueError('Unsupported model_type:', model_type)
     model = model.to(device)

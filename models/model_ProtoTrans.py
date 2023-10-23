@@ -453,8 +453,8 @@ class ProtoTransformer(nn.Module):
         self.projection = nn.Sequential(nn.Linear(feature_size, embed_size, bias=True), nn.ReLU())
         # self.prototye_projection = nn.Sequential(nn.Linear(feature_size, embed_size, bias=True), nn.ReLU())
 
-        # if self.inst_num_twice is not None: # inst_selection_twice:
-        #     self.inst_selection = inst_selector(input_dim=embed_size, inst_num = self.inst_num_twice, random=random_inst)
+        if self.inst_num_twice is not None: # inst_selection_twice:
+            self.inst_selection = inst_selector(input_dim=embed_size, inst_num = self.inst_num_twice, random=random_inst)
 
         if self.abmil_branch:
             self.aux_loss_fn = aux_loss_fn
@@ -494,8 +494,8 @@ class ProtoTransformer(nn.Module):
             aux_abmil_loss = self.aux_loss_fn(abmil_logit, label)
 
         if self.inst_num_twice is not None and self.inst_num_twice < x_feats.shape[0]: # inst_selection_twice:
-            x_feats = self.abmil.iterative_embed_selection(x_path=x_feats, top_num=self.inst_num_twice)     
-            # x_feats = self.inst_selection(x_feats)          
+            # x_feats = self.abmil.iterative_embed_selection(x_path=x_feats, top_num=self.inst_num_twice)     
+            x_feats = self.inst_selection(x_feats)          
 
         x = self.cross_attn(x_feats.unsqueeze(0), prototype) # B x num_cluster x feature_size
         x = self.mlp(x) # B x num_cluster x feature_size

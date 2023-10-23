@@ -736,10 +736,11 @@ def summary(model, loader, n_classes, **kwargs):
 
         acc_logger.log(Y_hat, label)
         probs = Y_prob.cpu().numpy()
+        probs = probs.squeeze(0)
         all_probs[batch_idx] = probs
         all_labels[batch_idx] = label.item()
         
-        patient_results.append({'slide_id': np.array(slide_id), 'prob': probs[0], 'label': label.item()})
+        patient_results.append({'slide_id': np.array(slide_id), 'prob_neg': probs[0], 'prob_pos': probs[1], 'label': label.item()})
         error = calculate_error(Y_hat, label)
         test_error += error
 
