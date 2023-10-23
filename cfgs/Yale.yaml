@@ -1,7 +1,7 @@
 CKPTS:
   datasource: Yale
   task: "HER2status"  # recurrence or survival
-  exp_code: debug # ProtoTransformer_linearcls_keep_embedd_top500 #  ProtoTransformer_linear_cls_keep_embedd_dim # ProtoMIL_weightedsum_prototype_hidden512_top50_0dropout_lossCE_1WSampling 
+  exp_code: debug
 
   data_root_dir: "/home/cyyan/Projects/HER2proj/results/Yale_2FeatsCCL" # data directory
   # 'csv file with slide_id and label information'
@@ -17,7 +17,8 @@ TRAIN:
   encoding_dim:  2048 #'WSI patches encoding dim' [1024, 768, 2048]
   model_size: ccl2048  # ['resnet_small', 'ViT_small', 'ccl2048']' size of model, does not affect mil'
 
-  top_num_inst: 1000 # sampling `top_num_inst` instances in model forward according to attention scores, in model 
+  top_num_inst: 2000 # sampling `top_num_inst` instances in model forward according to attention scores, in model 
+  top_num_inst_twice: 500
   num_perslide: # None will cover all samples, for data sampling, __getitem__
   n_classes: 2 # 'number of classes (4 bins for survival)'
   label_col: HER2status # label column name, type of survival (OS, DFS, PFI)')

@@ -98,7 +98,8 @@ def _init_optim(model, optim_func=None, lr=1e-4, reg=1e-5, scheduler_func=None, 
     return optimizer, scheduler
 
 
-def _init_model(model_type=None, model_size="ccl2048", input_size=2048, drop_out=0., n_classes=2, top_num_inst=1, n_cluster=1, device="cpu"):
+def _init_model(model_type=None, model_size="ccl2048", input_size=2048, drop_out=0., n_classes=2, 
+                top_num_inst=None, top_num_inst_twice=None, n_cluster=1, device="cpu"):
     print('\nInit Model...', end=' ')
     if model_type == "ABMIL":
         model_dict = {"size_arg":model_size, "dropout" : drop_out, "n_classes" : n_classes, "top_num_inst": top_num_inst, "device" : device}
@@ -116,9 +117,9 @@ def _init_model(model_type=None, model_size="ccl2048", input_size=2048, drop_out
                          dropout=drop_out, output_class=n_classes, similarity_method="Euclidean", aggregation_method="weightedsum_prototype")
     elif model_type == "ProtoTransformer":
         model = ProtoTransformer(feature_size=input_size, embed_size=512, hidden_size=256, num_head=1,
-                                 num_cluster=n_cluster, inst_num=top_num_inst, random_inst=False,
+                                 num_cluster=n_cluster, inst_num=top_num_inst, inst_num_twice=top_num_inst_twice, random_inst=False,
                                  attn_dropout=drop_out, dropout=drop_out, output_class=n_classes,
-                                 cls_method="cls_keep_embedd_dim", abmil_branch=False)
+                                 cls_method="cls_keep_embedd_dim", abmil_branch=True)
     else:
         raise ValueError('Unsupported model_type:', model_type)
     model = model.to(device)
@@ -657,7 +658,7 @@ def train_val(datasets, timeidx, cur, args):
     
     loss_fn = _init_loss_function(args.loss_func, args.alpha_surv, args.beta_surv, args.device)
     model = _init_model(args.model_type, args.model_size, args.encoding_dim, 
-                        args.drop_out, args.n_classes, args.top_num_inst, n_cluster=len(prototype_feats), device=args.device)
+                        args.drop_out, args.n_classes, args.top_num_inst, args.top_num_inst_twice, n_cluster=len(prototype_feats), device=args.device)
     
     optimizer, scheduler = _init_optim(model, args.optim, args.lr, args.reg, args.scheduler, args.max_epochs)
     _print_network(args.results_dir, model)

@@ -238,14 +238,14 @@ class MultiHeadCrossAttention(nn.Module):
         self.num_head = num_head
         self.dim_k = dim_k
         self.dim_v = dim_v
+        self.init_query = init_query
 
-        if init_query:
+        if self.init_query:
             query = nn.Parameter(torch.empty((1, self.num_cluster, self.input_dim)))
             q_init_val = math.sqrt(1 / self.dim_k)
             nn.init.uniform_(query, a=-q_init_val, b=q_init_val)
             self.query = query
-        else:
-            self.query = None
+
 
         self.q_w = nn.Linear(self.input_dim, self.num_head * self.dim_k, bias=False)
         self.k_w = nn.Linear(self.input_dim, self.num_head * self.dim_k, bias=False)
@@ -263,16 +263,14 @@ class MultiHeadCrossAttention(nn.Module):
 
 
     def forward(self, x, prototype=None): # x is feats
-        if self.query is not None and prototype is None:
-            query = self.query
-        elif self.query is None and prototype is not None:
-            query = prototype
-        else:
-            raise NotImplementedError
+        if not self.init_query:
+            self.query = prototype
+        # elif self.init_query and prototype is not None:
+        #     self.query = nn.Parameter((self.query.data + prototype.unsqueeze(0))/2, requires_grad=True)
         
         B, len_seq = x.shape[:2]
         # project and separate heads
-        q = self.q_w(query).view(1, self.num_cluster, self.num_head, self.dim_k)
+        q = self.q_w(self.query).view(1, self.num_cluster, self.num_head, self.dim_k)
         k = self.k_w(x).view(B, len_seq, self.num_head, self.dim_k)
         v = self.v_w(x).view(B, len_seq, self.num_head, self.dim_v)
 
@@ -286,25 +284,20 @@ class MultiHeadCrossAttention(nn.Module):
         x = x.transpose(1, 2).contiguous().view(B, self.num_cluster, -1) # combine heads       
         x = self.dropout(self.fc(x))
         # residual connection + layernorm
-        x += query
+        x += self.query
         x = self.layer_norm(x) # B x num_cluster x input_dim
-
-        if self.query is not None and prototype is None:
-            self.query = query
         
         return x
 
     def get_attn(self, x, prototype=None):
-        if self.query is not None and prototype is None:
-            query = self.query
-        elif self.query is None and prototype is not None:
-            query = prototype
-        else:
-            raise NotImplementedError
+        if not self.init_query:
+            self.query = prototype
+        # elif self.init_query and prototype is not None:
+        #     self.query = nn.Parameter((self.query.data + prototype.unsqueeze(0))/2, requires_grad=True)
         
         B, len_seq = x.shape[:2]
 
-        q = self.q_w(query).view(1, self.num_cluster, self.num_head, self.dim_k)
+        q = self.q_w(self.query).view(1, self.num_cluster, self.num_head, self.dim_k)
         k = self.k_w(x).view(B, len_seq, self.num_head, self.dim_k)
 
         q, k = q.transpose(1, 2), k.transpose(1, 2)
@@ -387,15 +380,14 @@ class AttenMIL(nn.Module):
         A = torch.transpose(A, 1, 0)
         A = F.softmax(A, dim=1)
         top_idx = torch.topk(A, top_num, dim = -1)[1] # (N, top_num)
-        return top_idx
+        return  torch.index_select(x_path, dim=0, index=top_idx.squeeze())
 
 
-    def forward(self, x, attention_only=False, test=False): 
+    def forward(self, x, attention_only=False, test=False, return_select_x=False): 
         x = x.squeeze() #  N x feats_dim
 
         if not test and self.top_num_inst is not None and self.top_num_inst < x.shape[0]:
-            top_idx = self.iterative_embed_selection(x_path=x, top_num=self.top_num_inst)
-            x = torch.index_select(x, dim=0, index=top_idx)
+            x = self.iterative_embed_selection(x_path=x, top_num=self.top_num_inst) 
 
         atten_score, h_path = self.attention_net(x) # atten_score: N x 1, h_path: N x hidden_size
         atten_score = torch.transpose(atten_score, 1, 0)
@@ -406,12 +398,15 @@ class AttenMIL(nn.Module):
 
         logits  = self.classifier(h_path) # logits: [1 x output_class] vector 
 
-        Y_prob = F.softmax(logits, dim = 1)
-        Y_hat = torch.argmax(Y_prob, dim= 1)
-        # Y_hat = torch.topk(logits, 1, dim = 1)[1]
+        if return_select_x:
+            return logits, x, atten_score
+        else:
+            Y_prob = F.softmax(logits, dim = 1)
+            Y_hat = torch.argmax(Y_prob, dim= 1)
+            # Y_hat = torch.topk(logits, 1, dim = 1)[1]
 
-        results_dict = {}
-        return logits, Y_prob, Y_hat, atten_score, results_dict
+            results_dict = {}
+            return logits, Y_prob, Y_hat, atten_score, results_dict
     
 
 class inst_selector(nn.Module):
@@ -445,7 +440,7 @@ cluster-Prototypes-based Transformer for cls.
 """
 class ProtoTransformer(nn.Module):
     def __init__(self, feature_size=2048, embed_size=512, hidden_size=256, num_head=4,
-                 num_cluster=64, inst_num = None, random_inst=False,
+                 num_cluster=64, inst_num = None, inst_num_twice=None, random_inst=False,
                  attn_dropout=0.1, dropout=0.25, output_class=2,
                  cls_method=None, aux_loss_fn=nn.CrossEntropyLoss(), abmil_branch=False,
                  *args, **kwargs):
@@ -453,12 +448,13 @@ class ProtoTransformer(nn.Module):
         self.cls_method = cls_method
         self.inst_num = inst_num
         self.abmil_branch = abmil_branch
+        self.inst_num_twice = inst_num_twice
 
         self.projection = nn.Sequential(nn.Linear(feature_size, embed_size, bias=True), nn.ReLU())
         # self.prototye_projection = nn.Sequential(nn.Linear(feature_size, embed_size, bias=True), nn.ReLU())
 
-        if self.inst_num is not None:
-            self.inst_selection = inst_selector(input_dim=embed_size, inst_num = self.inst_num, random=random_inst)
+        # if self.inst_num_twice is not None: # inst_selection_twice:
+        #     self.inst_selection = inst_selector(input_dim=embed_size, inst_num = self.inst_num_twice, random=random_inst)
 
         if self.abmil_branch:
             self.aux_loss_fn = aux_loss_fn
@@ -479,7 +475,7 @@ class ProtoTransformer(nn.Module):
         elif self.cls_method == "cls_keep_embedd_dim":
             self.transf = weightedSumClassifier(embed_size, hidden_size, dropout, output_class, mean_dim=0)
         elif self.cls_method == "cls_abmil":
-            self.transf = AttenMIL(embed_size, hidden_size, dropout, output_class)
+            self.transf = AttenMIL(embed_size, hidden_size, dropout, inst_num=None, output_class=output_class)
         
     def get_scores(self, x, prototype=None):
         x = self.projection(x.unsqueeze(0))
@@ -492,8 +488,13 @@ class ProtoTransformer(nn.Module):
     def forward(self, x_feats, prototype=None, label=None):
         x_feats = self.projection(x_feats)
         prototype = self.projection(prototype)
-        
-        if self.inst_num is not None:    
+
+        if self.abmil_branch and label is not None:
+            abmil_logit, x_feats, _ = self.abmil(x_feats, return_select_x=True)
+            aux_abmil_loss = self.aux_loss_fn(abmil_logit, label)
+
+        if self.inst_num_twice is not None and self.inst_num_twice < x_feats.shape[0]: # inst_selection_twice:
+            x_feats = self.abmil.iterative_embed_selection(x_path=x_feats, top_num=self.inst_num_twice)     
             x_feats = self.inst_selection(x_feats)          
 
         x = self.cross_attn(x_feats.unsqueeze(0), prototype) # B x num_cluster x feature_size
@@ -501,9 +502,7 @@ class ProtoTransformer(nn.Module):
 
         logits, Y_prob, Y_hat, _, results_dict = self.transf(x.squeeze(0))
 
-        if self.abmil_branch and label is not None:  # 目前先把abmil branch放到inst selection 之后
-            abmil_logit, _, _, _, _ = self.abmil(x_feats)
-            aux_abmil_loss = self.aux_loss_fn(abmil_logit, label)
+        if self.abmil_branch and label is not None:
             results_dict.update({'instance_loss': aux_abmil_loss})
 
         return logits, Y_prob, Y_hat, _, results_dict
