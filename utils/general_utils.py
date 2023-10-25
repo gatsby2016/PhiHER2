@@ -28,7 +28,7 @@ from .utils import collate_MIL_survival, collate_MIL, collate_pathol_factor_surv
 def set_seed_torch(gpu=None, seed=1):
     if torch.cuda.is_available() and gpu is not None:
         os.environ['CUDA_VISIBLE_DEVICES'] = gpu
-        device = torch.device('cuda')
+        device = torch.device('cuda:'+gpu)
     else:
         device = torch.device('cpu')
 

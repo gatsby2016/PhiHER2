@@ -1,23 +1,25 @@
 CKPTS:
   datasource: TCGA
   task: "HER2status"  # recurrence or survival
-  exp_code: "blur_baseline_feats2000_ABMIL_lossCE_1WeightedSampling"
+  exp_code: debug
 
-  data_root_dir: "/home/cyyan/Projects/HER2proj/results/TCGA_2FeatsCCL_blur" # data directory
+  data_root_dir: "/home/cyyan/Projects/HER2/results/TCGA_2FeatsCCL_20x" # data directory
   # 'csv file with slide_id and label information'
-  csv_info_path: "/home/cyyan/Projects/HER2proj/data_TCGABRCA/TCGABRCA_AllSlides_ClinInfo_Status0927.csv"
+  csv_info_path: "/home/cyyan/Projects/HER2/TCGABRCA_AllSlides_ClinInfo_Status0927.csv"
   # IF not None, manually specify the set of splits to use
-  split_dir: "/home/cyyan/Projects/HER2proj/results/TCGA_3CaseSplits/her2status_KFoldsCV"
-  results_dir: "/home/cyyan/Projects/HER2proj/models" # results directory (default: ./results)
+  split_dir: "/home/cyyan/Projects/HER2/results/TCGA_3CaseSplits/her2status_KFoldsCV"
+  results_dir: "/home/cyyan/Projects/HER2/models" # results directory (default: ./results)
   cfg_to_name: "params_setting.txt"
 
 
 TRAIN:
-  model_type:  # ['clam_sb', 'clam_mb', 'mil'] type of model (default: clam_sb, clam w/ single attention branch)
-  encoding_dim: 2048 #'WSI patches encoding dim'
-  model_size: ccl2048  # ['small', 'big', 'ccl2048']' size of model, does not affect mil'
+  model_type:  ProtoTransformer # ['ProtoTransformer', 'CLAM', 'ProtoMIL', 'ABMIL', 'Transformer'] type of model (default: clam_sb, clam w/ single attention branch)
+  encoding_dim:  2048 #'WSI patches encoding dim' [1024, 768, 2048]
+  model_size: ccl2048  # ['resnet_small', 'ViT_small', 'ccl2048']' size of model, does not affect mil'
 
-  num_perslide: 2000 # None will cover all samples
+  top_num_inst: # sampling `top_num_inst` instances in model forward according to attention scores, in model 
+  top_num_inst_twice: 500
+  num_perslide: # None will cover all samples, for data sampling, __getitem__
   n_classes: 2 # 'number of classes (4 bins for survival)'
   label_col: HER2status # label column name, type of survival (OS, DFS, PFI)')
   loss_func: CE # ['ce_surv', 'nll_surv', 'multi_surv'] 'slide-level classification loss function (default: nll_surv)'
@@ -29,13 +31,13 @@ TRAIN:
   
 
 HyperParams:
-  max_epochs: 100 # 'maximum number of epochs to train (default: 200)'
+  max_epochs: 1000 # 'maximum number of epochs to train (default: 200)'
   batch_size: 1
   gc: 32 # 'Gradient Accumulation Step.'
   lr: 0.0001 # 'learning rate (default: 0.0001)'
   optim: adam  # optimizer, adam sgd adamW radam Lamb
   scheduler: LinearLR # optimizer scheduler [CosineAnnealingLR CyclicLR LinearLR OneCycleLR StepLR]
-  drop_out: 0.25 # fix BUG, should be a float num, enable dropout (p=0.25)'
+  drop_out: 0. # fix BUG, should be a float num, enable dropout (p=0.25)'
   early_stopping: True  # enable early stopping
 
   reg: 0.00001 # 'weight decay (default: 1e-5)'
@@ -58,8 +60,20 @@ CLAM_spec:
   bag_weight: 0.7 # 'clam: weight coefficient for bag-level loss (default: 0.7)
   B: 16 # number of positive/negative patches to sample for clam
 
+CLUSTER:
+  lib: lib/select_train.ckpt # lib to save wsi id of train set
+  preference: 0 # preference for AP clustering
+  damping: 0.5 # damping for AP clustering
+  prototypes_index: cluster/prototypes_index.ckpt
+  global_ap_model: cluster/ap_model.pkl
+  feat_dir: # path to save features
+  global_cluster_path: "/home/cyyan/Projects/HER2/results/TCGA_3APCluster"
+  local_cluster_path: "/home/cyyan/Projects/HER2/results/TCGA_3APCluster/local_files"
+  lamb: 0.25
+
+
 
 COMMON:
-  gpu: '0'
+  gpu: "0"
   seed: 2020 # 'random seed for reproducible experiment (default: 2020)'
   workers: 8  # data loader workers

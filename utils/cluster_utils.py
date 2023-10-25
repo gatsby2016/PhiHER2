@@ -178,10 +178,15 @@ def local_cluster_one_slide(feat, slide_id, args):
 
 
 def global_cluster_training_split(local_centroids_features, args):
+    begin = time.time()
+
     similarity = euclidean_similarity(local_centroids_features, args.lamb)
     ap = AffinityPropagation(preference=args.preference, damping=args.damping, affinity='precomputed', random_state=args.seed).fit(similarity)
     global_cluster_centers_indices = ap.cluster_centers_indices_
     labels = ap.labels_
+    usetime = time.time() - begin
+    print("[Global] AP cluster on {} for prototypes, Use time: {:.2f}\t Number of cluster: {}".format(
+        len(local_centroids_features), usetime, len(global_cluster_centers_indices)))
 
     global_centroids_features = local_centroids_features[global_cluster_centers_indices, :].type(torch.float32)
     return global_cluster_centers_indices, global_centroids_features, ap
