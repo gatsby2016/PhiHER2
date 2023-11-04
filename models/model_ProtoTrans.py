@@ -284,7 +284,7 @@ class MultiHeadCrossAttention(nn.Module):
         x = x.transpose(1, 2).contiguous().view(B, self.num_cluster, -1) # combine heads       
         x = self.dropout(self.fc(x))
         # residual connection + layernorm
-        x += self.query
+        # x += self.query
         x = self.layer_norm(x) # B x num_cluster x input_dim
         
         return x
@@ -490,7 +490,7 @@ class ProtoTransformer(nn.Module):
         prototype = self.projection(prototype)
 
         if self.abmil_branch and label is not None:
-            abmil_logit, x_feats, _ = self.abmil(x_feats, return_select_x=True)
+            abmil_logit, _, _ = self.abmil(x_feats, return_select_x=True)
             aux_abmil_loss = self.aux_loss_fn(abmil_logit, label)
 
         if self.inst_num_twice is not None and self.inst_num_twice < x_feats.shape[0]: # inst_selection_twice:

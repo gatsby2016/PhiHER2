@@ -448,7 +448,7 @@ def train_loop(epoch, model, loader, optimizer, scheduler, n_classes, writer = N
         data = data.to(device).type(torch.float32)
         label = label.to(device)
 
-        logits, Y_prob, Y_hat, _, results_dict = model(data, label=label, prototype=kwargs["prototypes"])
+        logits, Y_prob, Y_hat, _, results_dict = model(data, label=label, **kwargs)
         
         acc_logger.log(Y_hat, label)
         loss = loss_fn(logits, label)
@@ -510,7 +510,7 @@ def validate(cur, epoch, model, loader, n_classes, early_stopping = None, writer
         for batch_idx, (data, label, _) in enumerate(loader):
             data, label = data.to(device, non_blocking=True).type(torch.float32), label.to(device, non_blocking=True)
 
-            logits, Y_prob, Y_hat, _, results_dict = model(data, label=label, prototype=kwargs["prototypes"])
+            logits, Y_prob, Y_hat, _, results_dict = model(data, label=label, **kwargs)
 
             acc_logger.log(Y_hat, label)
             
@@ -732,7 +732,7 @@ def summary(model, loader, n_classes, **kwargs):
         data, label = data.to(device).type(torch.float32), label.to(device)
         slide_id = slide_ids.iloc[batch_idx]
         with torch.no_grad():
-            logits, Y_prob, Y_hat, _, _ = model(data, prototype=kwargs["prototypes"])
+            logits, Y_prob, Y_hat, _, _ = model(data, **kwargs)
 
         acc_logger.log(Y_hat, label)
         probs = Y_prob.cpu().numpy()

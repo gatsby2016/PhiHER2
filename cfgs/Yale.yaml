@@ -17,7 +17,7 @@ TRAIN:
   encoding_dim:  2048 #'WSI patches encoding dim' [1024, 768, 2048]
   model_size: ccl2048  # ['resnet_small', 'ViT_small', 'ccl2048']' size of model, does not affect mil'
 
-  top_num_inst:  # sampling `top_num_inst` instances in model forward according to attention scores, in model 
+  top_num_inst: 2000 # sampling `top_num_inst` instances in model forward according to attention scores, in model 
   top_num_inst_twice: 500
   num_perslide: # None will cover all samples, for data sampling, __getitem__
   n_classes: 2 # 'number of classes (4 bins for survival)'

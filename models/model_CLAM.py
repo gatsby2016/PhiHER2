@@ -204,7 +204,7 @@ class CLAM_SB(nn.Module):
         instance_loss = self.instance_loss_fn(logits, p_targets)
         return instance_loss, p_preds, p_targets
 
-    def forward(self, h, label=None, return_features=False, attention_only=False):
+    def forward(self, h, label=None, return_features=False, attention_only=False, **kwargs):
         device = h.device
         if self.conv:
             h = h.transpose(1, 0).unsqueeze(0) #num_k x dim_feats, 转置为dim_feats x num_k， 再维度0 增加batch维度，即 N x dim_feats x num_k

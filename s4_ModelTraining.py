@@ -37,20 +37,10 @@ one time run for one fold training and validataion;
 output: saving `split_latest_val_results.csv` and `split_latest_test_results.csv` in args.results_dir
 return val_cindex and test_cindex
 """
-def one_fold_run(tidx, kidx, dataset_factory, args):
-    print(f"Created train and val datasets for time {tidx} fold {kidx}")
-    if False:
-        datasets = dataset_factory.return_splits(args, 
-                                                csv_path='{}/splits_{}.csv'.format(args.split_dir, kidx), 
-                                                fold=kidx)
-    else:
-        datasets = dataset_factory.return_splits(from_id=False, csv_path=f'{args.split_dir}/splits_time{tidx}_fold{kidx}.csv')
-        datasets[0].set_split_id(split_id=kidx)
-        datasets[1].set_split_id(split_id=kidx)
-    
+def one_fold_run(tidx, kidx, args, **kwargs):    
     # results, (val_cindex, val_cindex_ipcw, val_BS, val_IBS, val_iauc, total_loss) = train_val(datasets, i, args)
     # metrics_results.append([val_cindex, val_cindex_ipcw, val_BS, val_IBS, val_iauc, total_loss])
-    val_results_dict, test_results_dict, val_auc, test_auc, val_acc, test_acc = train_val(datasets, tidx, kidx, args)
+    val_results_dict, test_results_dict, val_auc, test_auc, val_acc, test_acc = train_val(tidx, kidx, args, **kwargs)
 
     pd.DataFrame(val_results_dict).to_csv(os.path.join(args.results_dir, f"split_latest_val_{kidx}_results.csv"))
     if test_results_dict is not None:
@@ -64,14 +54,14 @@ one time run for k folds cross validation
 output: saving `summary.csv` or `summary_partial_start_end.csv` in args.results_dir
 return: final_df 
 """
-def one_time_kfolds_run(tidx, dataset_factory, args):
+def one_time_kfolds_run(tidx, args, **kwargs):
     start = 0 if args.k_start == -1 else args.k_start
     end = args.k if args.k_end == -1 else args.k_end
     folds = np.arange(start, end)
 
     metrics_results = []
     for kidx in folds:
-        val_auc, test_auc, val_acc, test_acc = one_fold_run(tidx, kidx, dataset_factory, args)
+        val_auc, test_auc, val_acc, test_acc = one_fold_run(tidx, kidx, args, **kwargs)
         metrics_results.append([tidx, kidx, val_auc, test_auc, val_acc, test_acc])
                                 
     if len(folds) != args.k:
@@ -93,7 +83,7 @@ def one_time_kfolds_run(tidx, dataset_factory, args):
 multi times runs for k folds cross validation
 output: saving `summary_alltimes_kfolds.csv` or `summary_partial_tstart_tend.csv` in results_root_dir
 """
-def multimes_kfolds_run(dataset_factory, args):
+def multimes_kfolds_run(args, **kwargs):
     tstart = 0 if args.t_start == -1 else args.t_start
     tend = args.times if args.t_end == -1 else args.t_end
     times = np.arange(tstart, tend)
@@ -104,7 +94,7 @@ def multimes_kfolds_run(dataset_factory, args):
         args.results_dir = os.path.join(results_root_dir, "time"+str(tidx))
         os.makedirs(args.results_dir, exist_ok=True)
 
-        onetime_metric_summary = one_time_kfolds_run(tidx, dataset_factory=dataset_factory, args=args)
+        onetime_metric_summary = one_time_kfolds_run(tidx, args, **kwargs)
         alltimes_summary.append(onetime_metric_summary)
 
     if len(times) != args.times:
@@ -136,6 +126,19 @@ def main(args):
                                 ignore=[],
                                 num_perslide=args.num_perslide
                                 )
+        dataset_independent = Generic_MIL_Dataset(csv_path = args.indep_csv_info_path,
+                                data_dir= args.indep_data_root_dir,
+                                shuffle = False, 
+                                seed = args.seed, 
+                                print_info = True,
+                                label_dict = labels_dict,
+                                filter_dict = filter_dict,
+                                label_col = args.label_col,
+                                patient_voting='maj', # maj合理；max是对于一个patient多个slide标签选标签值最大，不合理
+                                patient_strat= True, # TRUE 表示按照patient进行划分split，且保证同一个patient的所有slide被split在同一区间内，如train或val；否则直接按slideID进行split
+                                ignore=[],
+                                num_perslide=args.num_perslide
+                                )
     else:
         dataset_factory = Generic_MIL_Survival_Dataset(csv_path = args.csv_info_path,
                                             apply_sig = False,
@@ -150,7 +153,7 @@ def main(args):
                                             ignore=[],
                                             num_perslide=args.num_perslide)
         
-    multimes_kfolds_run(dataset_factory=dataset_factory, args=args)
+    multimes_kfolds_run(args=args, dataset_factory=dataset_factory, dataset_independent=dataset_independent)
 
 
 if __name__ == "__main__":

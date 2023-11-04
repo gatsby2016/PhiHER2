@@ -108,18 +108,18 @@ def _init_model(model_type=None, model_size="ccl2048", input_size=2048, drop_out
     elif model_type == "Transformer":
         model = Transformer(num_classes=n_classes, input_dim=input_size, depth=1, 
                             heads=4, dim_head=64, hidden_dim=512, 
-                            pool='mil', dropout=drop_out, emb_dropout=0., pos_enc=None)
+                            pool='cls', dropout=drop_out, emb_dropout=0., pos_enc=None)
     elif model_type == "CLAM":
         model = CLAM_SB(gate=True, size_arg=model_size, dropout=False, k_sample=32, instance_eval=True, n_classes=n_classes)
     elif model_type == "ProtoMIL":
         model = ProtoMIL(feature_size=input_size, hidden_size=512, cls_hidden_size=128,
-                         num_cluster=n_cluster, topk_num=top_num_inst, instance_eval=False,
-                         dropout=drop_out, output_class=n_classes, similarity_method="Euclidean", aggregation_method="weightedsum_prototype")
+                         num_cluster=n_cluster, topk_num=top_num_inst_twice, instance_eval=False,
+                         dropout=drop_out, output_class=n_classes, similarity_method="Euclidean", aggregation_method="mean")
     elif model_type == "ProtoTransformer":
         model = ProtoTransformer(feature_size=input_size, embed_size=512, hidden_size=256, num_head=1,
                                  num_cluster=n_cluster, inst_num=top_num_inst, inst_num_twice=top_num_inst_twice, random_inst=False,
                                  attn_dropout=drop_out, dropout=drop_out, output_class=n_classes,
-                                 cls_method="cls_keep_embedd_dim", abmil_branch=False)
+                                 cls_method="cls_keep_embedd_dim", abmil_branch=True)
     else:
         raise ValueError('Unsupported model_type:', model_type)
     model = model.to(device)
@@ -635,26 +635,44 @@ def APcluster_prototypes(train_loader, args, timeidx, cur):
         _, local_cent_feat = local_cluster_one_slide(data, slide_id=slide_id, args=args)
         all_local_cents_feats = torch.cat((all_local_cents_feats, local_cent_feat), dim=0)
 
-    if False and os.path.exists(os.path.join(args.global_cluster_path, str(timeidx) + "_" + str(cur) + '_global_prototypes.pt')):
-        data = torch.load(os.path.join(args.global_cluster_path, str(timeidx) + "_" + str(cur) + '_global_prototypes.pt'))
-        global_cents_feats = data["global_centroid_feats"]
+    global_cents_indices, global_cents_feats, apmodel = global_cluster_training_split(all_local_cents_feats, args=args)
 
-    else:
-        global_cents_indices, global_cents_feats, apmodel = global_cluster_training_split(all_local_cents_feats, args=args)
-        torch.save({'global_centroid_indices': global_cents_indices, 
-                    'global_centroid_feats': global_cents_feats,
-                    'cluster_model': apmodel}, 
-                    os.path.join(args.global_cluster_path, str(timeidx) + "_" + str(cur) + '_global_prototypes.pt'))
+    os.makedirs(args.results_dir, exist_ok=True)
+
+    torch.save({'global_centroid_indices': global_cents_indices, 
+                'global_centroid_feats': global_cents_feats,
+                'cluster_model': apmodel}, 
+                os.path.join(args.results_dir, "fold" + str(cur) + 'apcluster_global_prototypes.pt'))
 
     print("Estimate number of cluster (GLOBAL): ", len(global_cents_feats))
     return global_cents_feats.to(args.device)
     
 
-def train_val(datasets, timeidx, cur, args):
+def train_val(timeidx, cur, args, **kwargs):
+    dataset_factory = kwargs["dataset_factory"]
+    if "dataset_independent" in kwargs.keys():
+        dataset_independent = kwargs["dataset_independent"]
+        indep_loader = _get_split_loader(args, dataset_independent,  testing=False, batch_size=1)
+    else:
+        indep_loader = None
+
+    print(f"Created train and val datasets for time {timeidx} fold {cur}")
+    if args.split_dir.split("/")[-1][-12:] == "TrainValTest":
+        csv_path = f'{args.split_dir}/splits_time{timeidx}.csv'
+    else:
+        csv_path = f'{args.split_dir}/splits_time{timeidx}_fold{cur}.csv'
+        
+    datasets = dataset_factory.return_splits(from_id=False, csv_path=csv_path)
+    datasets[0].set_split_id(split_id=cur)
+    datasets[1].set_split_id(split_id=cur)
+
     train_split, val_split, test_split = _get_splits(datasets, cur)
     train_loader, val_loader, test_loader = _init_loaders(args, train_split, val_split, test_split)
 
-    prototype_feats = APcluster_prototypes(train_loader, args, timeidx, cur) # only AP cluster prototypes for training dataset 
+    if args.model_type in ["ProtoMIL", "ProtoTransformer"]:
+        prototype_feats = APcluster_prototypes(train_loader, args, timeidx, cur) # only AP cluster prototypes for training dataset 
+    else:
+        prototype_feats = []
     
     loss_fn = _init_loss_function(args.loss_func, args.alpha_surv, args.beta_surv, args.device)
     model = _init_model(args.model_type, args.model_size, args.encoding_dim, 
@@ -676,9 +694,9 @@ def train_val(datasets, timeidx, cur, args):
     
     for epoch in range(args.max_epochs):
         train_loop(epoch, model, train_loader, optimizer, scheduler, args.n_classes, writer, loss_fn, l1_reg_all, args.lambda_reg, args.gc,
-                   prototypes=prototype_feats)
+                   prototype=prototype_feats)
         stop = validate(cur, epoch, model, val_loader, args.n_classes, 
-                early_stopping, writer, loss_fn, args.results_dir, prototypes=prototype_feats)
+                early_stopping, writer, loss_fn, args.results_dir, prototype=prototype_feats)
         if stop: 
             break
 
@@ -687,21 +705,25 @@ def train_val(datasets, timeidx, cur, args):
     else:
         torch.save(model.state_dict(), os.path.join(args.results_dir, "s_{}_checkpoint.pt".format(cur)))
 
-    val_results_dict, val_error, val_auc, acc_logger = summary(model, val_loader, args.n_classes, prototypes=prototype_feats)
+    val_results_dict, val_error, val_auc, acc_logger = summary(model, val_loader, args.n_classes, prototype=prototype_feats)
     print('Val error: {:.4f}, ROC AUC: {:.4f}'.format(val_error, val_auc))
 
-    if test_loader is not None:
-        test_results_dict, test_error, test_auc, acc_logger = summary(model, test_loader, args.n_classes, prototypes=prototype_feats)
-        print('Test error: {:.4f}, ROC AUC: {:.4f}'.format(test_error, test_auc))
+    if test_loader is not None: # test_loader or dataset_independent
+        test_results_dict, test_error, test_auc, acc_logger = summary(model, test_loader, args.n_classes, prototype=prototype_feats)
+    elif indep_loader is not None:
+        test_results_dict, test_error, test_auc, acc_logger = summary(model, indep_loader, args.n_classes, prototype=prototype_feats)
+    
+    print('Test error: {:.4f}, ROC AUC: {:.4f}'.format(test_error, test_auc))
 
-        for i in range(args.n_classes):
-            acc, correct, count = acc_logger.get_summary(i)
-            print('class {}: acc {}, correct {}/{}'.format(i, acc, correct, count))
-            # if writer:
-            #     writer.add_scalar('final/test_class_{}_acc'.format(i), acc, 0)
+    for i in range(args.n_classes):
+        acc, correct, count = acc_logger.get_summary(i)
+        print('class {}: acc {}, correct {}/{}'.format(i, acc, correct, count))
+        # if writer:
+        #     writer.add_scalar('final/test_class_{}_acc'.format(i), acc, 0)
 
-    else:
-        test_results_dict, test_error, test_auc, acc_logger = None, None, None, None
+    # else:
+    #     test_results_dict, test_error, test_auc, acc_logger = None, 1, None, None
 
+        
     writer.close()
     return val_results_dict, test_results_dict, val_auc, test_auc, 1-val_error, 1-test_error

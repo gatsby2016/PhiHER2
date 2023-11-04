@@ -111,6 +111,7 @@ class ProtoMIL(nn.Module):
         probs = F.softmax(inst_logit, dim=1)
 
         origin = False
+        self.topk_num = min(self.topk_num, len(x_path))
         if origin:
             _, m_indices = torch.sort(probs, 0,
                                      descending=True)

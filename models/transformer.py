@@ -75,7 +75,7 @@ class Transformer(BaseAggregator):
         
         self.pos_enc = pos_enc
 
-    def forward(self, x, coords=None, register_hook=False, label=None):
+    def forward(self, x, coords=None, register_hook=False, **kwargs):
         x = x.unsqueeze(0)
         b, _, _ = x.shape
 
