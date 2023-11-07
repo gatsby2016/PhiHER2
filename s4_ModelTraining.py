@@ -9,6 +9,7 @@ from datasets.dataset_survpath import SurvivalDatasetFactory
 from datasets.dataset_survival import Generic_MIL_Survival_Dataset
 from datasets.dataset_generic import Generic_MIL_Dataset
 from utils.train_utils import train_val
+from utils.metrics_utils import calc_metrics
 
 
 def get_parser():
@@ -107,6 +108,7 @@ def multimes_kfolds_run(args, **kwargs):
     alltimes_summary.loc['std'] = alltimes_summary.apply(lambda x: x[:-1].std()) # 计算std时 新增的mean行不算在内
 
     alltimes_summary.to_csv(os.path.join(results_root_dir, save_name))
+    calc_metrics(data_path=results_root_dir, folds=args.k, times=args.times)
 
 
 def main(args):

@@ -463,7 +463,7 @@ class ProtoTransformer(nn.Module):
         self.cross_attn = MultiHeadCrossAttention(num_cluster, num_head, input_dim=embed_size, 
                                                   dim_k=embed_size//num_head, dim_v=embed_size//num_head, init_query=False,
                                                   attn_dropout=attn_dropout, dropout=dropout)
-        self.mlp = MLP(embed_size, hidden_size, dropout=dropout)
+        # self.mlp = MLP(embed_size, hidden_size, dropout=dropout)
 
         if self.cls_method == "trans":
             self.transf = Transformer(num_classes=output_class, input_dim=embed_size, depth=1, 
@@ -498,7 +498,7 @@ class ProtoTransformer(nn.Module):
             x_feats = self.inst_selection(x_feats)          
 
         x = self.cross_attn(x_feats.unsqueeze(0), prototype) # B x num_cluster x feature_size
-        x = self.mlp(x) # B x num_cluster x feature_size
+        # x = self.mlp(x) # B x num_cluster x feature_size
 
         logits, Y_prob, Y_hat, _, results_dict = self.transf(x.squeeze(0))
 
