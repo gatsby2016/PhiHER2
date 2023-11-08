@@ -1,5 +1,6 @@
 import os, time, argparse, h5py
 from tqdm import tqdm
+import numpy as np
 
 import openslide
 
@@ -11,6 +12,7 @@ from datasets.dataset_h5 import Dataset_All_Bags, Whole_Slide_Bag_FP
 
 from utils.file_utils import save_hdf5, stat_feat_patch_num
 from utils.utils import print_network, collate_features
+from utils.plip_zeroshot_utils import PLIP_ZeroShot
 
 
 """
@@ -56,13 +58,21 @@ class featsExtraction(object):
         assert slide_ext in ['.svs', '.mrxs', '.ndpi'], f"{slide_ext} should be in ['.svs', '.mrxs', '.ndpi']"
         self.slide_ext = slide_ext
 
-    def run(self, batch_size=256, custom_downsample=1, gaussian_blur=False, resize_size=None, target_patch_size=-1, float16 = False):
+    def run(self, batch_size=256, custom_downsample=1, gaussian_blur=False, resize_size=None, target_patch_size=-1, float16 = False, plip_tumor=False):
         """
         operate feats extraction
         batch_size:
         custom_downsample: 相较于WsiPatching中指定尺寸的下采样倍率 如WsiPatching中create patch为256, 这里指定2 则实际提取的patch为256然后resize到256//2=128进行特征提取
         target_patch_size: 目标patch size 如和WsiPatching中指定尺寸不一致 会resize处理为这个targetsize 不指定target size和downsample时默认不resize，即用create的patch size
         """
+        if plip_tumor:
+            def_types = ["tumor", "adipose", "stroma", "immune infiltrates lymphocytes", "gland", "necrosis or hemorrhage", "background or black", "non"]
+            plip_model = PLIP_ZeroShot(model_path="/home/cyyan/Projects/HER2proj/scripts/plip/models/",
+                                       types_text=def_types,
+                                       device=self.device)
+        else:
+            plip_model = None
+        
         total = len(self.bags_dataset)
 
         for bag_candidate_idx in range(total):
@@ -88,7 +98,7 @@ class featsExtraction(object):
                         model = self.model, batch_size = batch_size, verbose = 1, 
                         gaussian_blur=gaussian_blur, resize_size=resize_size,
                         custom_downsample=custom_downsample, target_patch_size=target_patch_size,
-                        device=self.device)
+                        plip_model=plip_model, device=self.device)
             time_elapsed = time.time() - time_start
             print('\ncomputing features for {} took {} s'.format(output_path, time_elapsed))
             
@@ -101,13 +111,27 @@ class featsExtraction(object):
             # 保持的h5数据中存在coord为[-1,-1]标记，即对应patch损坏，feats仅用来置位，因此在保持无coord的pt数据时需要去掉这些feats
             features = features[file['coords'][:, 0] != -1, :] # 仅保留非-1标记的patch对应特征
             print('After filtering by coords MARKING; features size: ', features.shape)
+            if plip_tumor:
+                plip_tissue_idx = file['plip_tissue_idx'][:][file['coords'][:, 0] != -1]
+                reserve_tissue_flag = [each in [0, 4] for each in plip_tissue_idx] # select specific tissue. 0 tumor, 4 gland 
+                features = features[reserve_tissue_flag, :]
+                print('After ONLY selecting TUMOR tiles; features size: ', features.shape)
 
             features = torch.from_numpy(features)
             if float16:
                 features = features.type(torch.float16)
-                torch.save(features, os.path.join(self.featdirdicts['pt_feats_subdir'], slide_id+'.pt'))
-            else:
-                torch.save(features, os.path.join(self.featdirdicts['pt_feats_subdir'], slide_id+'.pt'))
+            torch.save(features, os.path.join(self.featdirdicts['pt_feats_subdir'], slide_id+'.pt'))
+
+            if plip_tumor: # here we also save the plip feats in pt files    
+                plip_feats = file['plip_feats'][:]
+                plip_feats = plip_feats[file['coords'][:, 0] != -1, :]
+                plip_feats = plip_feats[reserve_tissue_flag, :]
+                
+                plip_feats = torch.from_numpy(plip_feats)
+                if float16:
+                    plip_feats = plip_feats.type(torch.float16)
+                os.makedirs(self.featdirdicts['pt_feats_subdir']+"_plip", exist_ok=True)
+                torch.save(plip_feats, os.path.join(self.featdirdicts['pt_feats_subdir']+"_plip", slide_id+'.pt'))
 
 
     def stat_patch_num(self):
@@ -169,7 +193,7 @@ class featsExtraction(object):
     @staticmethod
     def compute_w_loader(file_path, slidewsi_path, output_path, model,
         batch_size = 8, verbose = 0, pretrained=True, gaussian_blur=False, resize_size=None,
-        custom_downsample=1, target_patch_size=-1, device="cuda"):
+        custom_downsample=1, target_patch_size=-1, plip_model=None, device="cuda"):
         """
         args:
             file_path: directory of bag (.h5 file)
@@ -195,14 +219,22 @@ class featsExtraction(object):
             print('processing {}: total of {} batches'.format(file_path,len(loader)))
 
         mode = 'w'
-        for batch, coords in tqdm(loader, total=len(loader)):
+        for batch, coords, batch_4plip in tqdm(loader, total=len(loader)):
             with torch.no_grad():	
                 batch = batch.to(device, non_blocking=True)
                 
                 features = model(batch)
                 features = features.cpu().numpy()
 
-                asset_dict = {'features': features, 'coords': coords}
+                if plip_model is not None:
+                    plip_feats, tissue_type_idx = plip_model(batch_4plip)
+                    plip_feats = plip_feats.cpu().numpy()
+                    tissue_type_idx = tissue_type_idx.cpu().numpy()
+                else:
+                    plip_feats = np.array([-1])
+                    tissue_type_idx = np.array([0]*len(batch_4plip))
+
+                asset_dict = {'features': features, 'coords': coords, 'plip_feats': plip_feats, 'plip_tissue_idx': tissue_type_idx}
                 save_hdf5(output_path, asset_dict, attr_dict= None, mode=mode)
                 mode = 'a'
         
@@ -229,6 +261,7 @@ def set_args():
     parser.add_argument('--gaussian_blur', default=False, action='store_true')
     parser.add_argument('--auto_skip', default=False, action='store_true')
     parser.add_argument('--float16', default=False, action='store_true')
+    parser.add_argument('--plip_tumor', default=False, action='store_true')
 
     args = parser.parse_args()
 
@@ -253,6 +286,6 @@ if __name__ == '__main__':
                                    args.slide_ext, args.auto_skip)
 
     featsextract.run(args.batch_size, args.custom_downsample, args.gaussian_blur, args.resize_size,
-                     args.target_patch_size, args.float16)
+                     args.target_patch_size, args.float16, args.plip_tumor)
 
     featsextract.stat_patch_num()

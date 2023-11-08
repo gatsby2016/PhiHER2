@@ -127,6 +127,7 @@ class Whole_Slide_Bag_FP(Dataset):
 		"""
 		self.pretrained=pretrained
 		self.wsi = wsi
+		self.plip_trans = transforms.Compose([transforms.Resize(size=224)])
 		if not custom_transforms:
 			self.roi_transforms = eval_transforms(pretrained=pretrained, gaussian_blur=gaussian_blur,
 										 set_size=resize_size)
@@ -179,8 +180,11 @@ class Whole_Slide_Bag_FP(Dataset):
 
 		if self.target_patch_size is not None:
 			img = img.resize(self.target_patch_size)
-		img = self.roi_transforms(img).unsqueeze(0)
-		return img, coord
+		image = self.roi_transforms(img).unsqueeze(0)
+		
+		img4plip = self.plip_trans(img)
+
+		return image, coord, img4plip
 
 class Dataset_All_Bags(Dataset):
 
