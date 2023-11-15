@@ -92,6 +92,8 @@ def multimes_kfolds_run(args, **kwargs):
     alltimes_summary = []
     results_root_dir = copy.deepcopy(args.results_dir)
     for tidx in times: # multi times loop
+        args.device = set_seed_torch(args.gpu, args.seed)
+
         args.results_dir = os.path.join(results_root_dir, "time"+str(tidx))
         os.makedirs(args.results_dir, exist_ok=True)
 
@@ -160,6 +162,5 @@ def main(args):
 
 if __name__ == "__main__":
     args = get_parser()   
-    args.device = set_seed_torch(args.gpu, args.seed)
     main(args)
     print("finished!")

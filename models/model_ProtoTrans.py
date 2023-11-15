@@ -214,7 +214,8 @@ class ScaledDotProductAttention(nn.Module):
     def compute_attn(self, q, k):
         
         attn = torch.matmul(q / self.temperature, k.transpose(2, 3))
-        attn = self.dropout(torch.softmax(attn, dim=-1))
+        # attn = self.dropout(torch.softmax(attn, dim=-1))
+        attn = attn / torch.norm(k, p=2, dim=3, keepdim=True).transpose(2,3) / torch.norm(q, p=2)
 
         return attn
 
@@ -254,7 +255,8 @@ class MultiHeadCrossAttention(nn.Module):
         self.fc = nn.Linear(self.num_head * self.dim_v, self.input_dim, bias=False)
 
         self.attention = ScaledDotProductAttention(
-            temperature=self.dim_k ** 0.5,
+            # temperature=self.dim_k ** 0.5,
+            temperature=1.0,
             attn_dropout=attn_dropout
         )
 
@@ -333,8 +335,8 @@ class weightedSumClassifier(nn.Module):
         super().__init__()
 
         self.mean_dim = mean_dim
-        self.mlp_head = nn.Sequential(nn.Linear(input_dim, hidden_size),
-                                      nn.ReLU(True),
+        self.linear = nn.Linear(input_dim, hidden_size)
+        self.mlp_head = nn.Sequential(nn.ReLU(True),
                                       nn.Dropout(dropout),
                                       nn.Linear(hidden_size, output_class))
     
@@ -344,7 +346,7 @@ class weightedSumClassifier(nn.Module):
         sim_coding = sim_coding.squeeze().unsqueeze(0)
         b, _ = sim_coding.shape # B x num_cluster (or input_dim)
 
-        logits = self.mlp_head(sim_coding)
+        logits = self.mlp_head(self.linear(sim_coding))
 
         Y_prob = F.softmax(logits, dim = 1)
         Y_hat = torch.argmax(Y_prob, dim= 1)
@@ -442,13 +444,16 @@ class ProtoTransformer(nn.Module):
     def __init__(self, feature_size=2048, embed_size=512, hidden_size=256, num_head=4,
                  num_cluster=64, inst_num = None, inst_num_twice=None, random_inst=False,
                  attn_dropout=0.1, dropout=0.25, output_class=2,
-                 cls_method=None, aux_loss_fn=nn.CrossEntropyLoss(), abmil_branch=False,
+                 cls_method=None, aux_loss_fn=nn.CrossEntropyLoss(), abmil_branch=False, 
+                 only_similarity=True,
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.cls_method = cls_method
         self.inst_num = inst_num
         self.abmil_branch = abmil_branch
         self.inst_num_twice = inst_num_twice
+        
+        self.only_similarity = only_similarity
 
         self.projection = nn.Sequential(nn.Linear(feature_size, embed_size, bias=True), nn.ReLU())
         # self.prototye_projection = nn.Sequential(nn.Linear(feature_size, embed_size, bias=True), nn.ReLU())
@@ -497,8 +502,11 @@ class ProtoTransformer(nn.Module):
             # x_feats = self.abmil.iterative_embed_selection(x_path=x_feats, top_num=self.inst_num_twice)     
             x_feats = self.inst_selection(x_feats)          
 
-        x = self.cross_attn(x_feats.unsqueeze(0), prototype) # B x num_cluster x feature_size
-        # x = self.mlp(x) # B x num_cluster x feature_size
+        if not self.only_similarity:
+            x = self.cross_attn(x_feats.unsqueeze(0), prototype) # B x num_cluster x feature_size
+            # x = self.mlp(x) # B x num_cluster x feature_size
+        else:
+            x = self.cross_attn.get_attn(x_feats.unsqueeze(0), prototype).squeeze(1)
 
         logits, Y_prob, Y_hat, _, results_dict = self.transf(x.squeeze(0))
 

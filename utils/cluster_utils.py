@@ -149,48 +149,36 @@ def get_grid_index():
 
 
 ######################################### befor epoch training
-def local_cluster_one_slide(feat, slide_id, args):
-    os.makedirs(args.local_cluster_path, exist_ok=True)
-    
-    if os.path.exists(os.path.join(args.local_cluster_path, slide_id+'.pt')):
-        data = torch.load(os.path.join(args.local_cluster_path, slide_id+'.pt'))
-        print("Loading, AP cluster for prototypes, {}, Number of cluster: {}".format(slide_id, len(data["centroid"])))
-        return data["centroid"], data["centroid_feat"]
-
+def local_apcluster(feat, **kwargs):
     begin = time.time()
-    similarity = euclidean_similarity(feat, args.lamb)
+    similarity = euclidean_similarity(feat, kwargs['lamb'])
 
     # default using negative squared euclidean distance
-    ap = AffinityPropagation(preference=args.preference, damping=args.damping, affinity='precomputed', random_state=args.seed).fit(similarity)
+    ap = AffinityPropagation(preference=kwargs['preference'], damping=kwargs['damping'], 
+                             affinity='precomputed', random_state=kwargs['seed']).fit(similarity)
     cluster_centers_indices = ap.cluster_centers_indices_
-    n_clusters = len(cluster_centers_indices)
     
     usetime = time.time() - begin
-
-    print("AP cluster for prototypes, {}, Use time: {:.2f}\t Number of cluster: {}".format(slide_id, usetime, n_clusters))
 
     local_centroids_feature = feat[cluster_centers_indices, :].type(torch.float32)
     # local_centroids_feature = torch.from_numpy(local_centroids_feature)
 
-    torch.save({'centroid': cluster_centers_indices, 'centroid_feat': local_centroids_feature}, 
-                os.path.join(args.local_cluster_path, slide_id+'.pt'))
-    return cluster_centers_indices, local_centroids_feature
+    return cluster_centers_indices, local_centroids_feature, usetime
 
 
-def global_cluster_training_split(local_centroids_features, args):
+def global_set_apcluster(local_centroids_features, **kwargs):
     begin = time.time()
 
-    similarity = euclidean_similarity(local_centroids_features, args.lamb)
-    ap = AffinityPropagation(preference=args.preference, damping=args.damping, affinity='precomputed', random_state=args.seed).fit(similarity)
+    similarity = euclidean_similarity(local_centroids_features, kwargs['lamb'])
+    ap = AffinityPropagation(preference=kwargs['preference'], damping=kwargs['damping'], 
+                             affinity='precomputed', random_state=kwargs['seed']).fit(similarity)
     global_cluster_centers_indices = ap.cluster_centers_indices_
     labels = ap.labels_
     usetime = time.time() - begin
-    print("[Global] AP cluster on {} for prototypes, Use time: {:.2f}\t Number of cluster: {}".format(
-        len(local_centroids_features), usetime, len(global_cluster_centers_indices)))
 
     global_centroids_features = local_centroids_features[global_cluster_centers_indices, :].type(torch.float32)
-    return global_cluster_centers_indices, global_centroids_features, ap
-
+    
+    return global_cluster_centers_indices, global_centroids_features, ap, usetime
 
 
 

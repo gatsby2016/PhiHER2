@@ -22,7 +22,6 @@ from utils.general_utils import _get_split_loader, _print_network, _save_splits
 from utils.core_utils import EarlyStopping, train_loop, validate, summary
 from utils.loss_func import NLLSurvLoss, CrossEntropySurvLoss, MultiSurvLoss
 from utils.utils import l1_reg_all
-from utils.cluster_utils import local_cluster_one_slide, global_cluster_training_split
 
 
 def _get_splits(datasets, cur):
@@ -114,12 +113,13 @@ def _init_model(model_type=None, model_size="ccl2048", input_size=2048, drop_out
     elif model_type == "ProtoMIL":
         model = ProtoMIL(feature_size=input_size, hidden_size=512, cls_hidden_size=128,
                          num_cluster=n_cluster, topk_num=top_num_inst_twice, instance_eval=False,
-                         dropout=drop_out, output_class=n_classes, similarity_method="Euclidean", aggregation_method="mean")
+                         dropout=drop_out, output_class=n_classes, similarity_method="Cosine", aggregation_method="weightedsum_prototype")
     elif model_type == "ProtoTransformer":
-        model = ProtoTransformer(feature_size=input_size, embed_size=512, hidden_size=256, num_head=1,
+        model = ProtoTransformer(feature_size=input_size, embed_size=512, hidden_size=128, num_head=1,
                                  num_cluster=n_cluster, inst_num=top_num_inst, inst_num_twice=top_num_inst_twice, random_inst=False,
                                  attn_dropout=drop_out, dropout=drop_out, output_class=n_classes,
-                                 cls_method="cls_keep_embedd_dim", abmil_branch=True)
+                                 cls_method="cls_keep_prototype_dim", abmil_branch=False, 
+                                 only_similarity=True)
     else:
         raise ValueError('Unsupported model_type:', model_type)
     model = model.to(device)
@@ -620,34 +620,6 @@ def _step(cur, args, loss_fn, model, optimizer, train_loader, val_loader, test_l
     return results_dict, (val_cindex, val_cindex_ipcw, val_BS, val_IBS, val_iauc, total_loss)
 
 
-"""
-AP cluster for prototype only cluster on training loader, in case of val data leak
-TODO: 需要保留索引，方便查看；
-AP cluster 的k num不需要指定 因此对于不同fold不同训练集 产生的cluster num不相同 对于模型的linear层输入dim 需要调整
-"""
-def APcluster_prototypes(train_loader, args, timeidx, cur):
-    all_local_cents_feats = torch.Tensor()
-    # for batch_idx, (data, label, slide_id) in enumerate(train_loader): # FIXME train_loader will be influenced if model size has been initized.
-    #     slide_id = slide_id[0]
-    train_split = train_loader.dataset
-    for idx in range(len(train_split)): # loader的方式已经random打乱，通过split的方式保持了原始数据的顺序；两者已对齐
-        (data, label, slide_id) = train_split[idx]
-        _, local_cent_feat = local_cluster_one_slide(data, slide_id=slide_id, args=args)
-        all_local_cents_feats = torch.cat((all_local_cents_feats, local_cent_feat), dim=0)
-
-    global_cents_indices, global_cents_feats, apmodel = global_cluster_training_split(all_local_cents_feats, args=args)
-
-    os.makedirs(args.results_dir, exist_ok=True)
-
-    torch.save({'global_centroid_indices': global_cents_indices, 
-                'global_centroid_feats': global_cents_feats,
-                'cluster_model': apmodel}, 
-                os.path.join(args.results_dir, "fold" + str(cur) + 'apcluster_global_prototypes.pt'))
-
-    print("Estimate number of cluster (GLOBAL): ", len(global_cents_feats))
-    return global_cents_feats.to(args.device)
-    
-
 def train_val(timeidx, cur, args, **kwargs):
     dataset_factory = kwargs["dataset_factory"]
     if "dataset_independent" in kwargs.keys():
@@ -670,7 +642,9 @@ def train_val(timeidx, cur, args, **kwargs):
     train_loader, val_loader, test_loader = _init_loaders(args, train_split, val_split, test_split)
 
     if args.model_type in ["ProtoMIL", "ProtoTransformer"]:
-        prototype_feats = APcluster_prototypes(train_loader, args, timeidx, cur) # only AP cluster prototypes for training dataset 
+        data = torch.load(os.path.join(args.cluster_path, f"time_{timeidx}_fold_{cur}_prototypes.pt"))
+        prototype_feats = data["global_centroid_feats"].to(args.device)
+        print(f"Loading, [GLOBAL] AP cluster for prototypes, Number of cluster: {len(prototype_feats)}")
     else:
         prototype_feats = []
     
