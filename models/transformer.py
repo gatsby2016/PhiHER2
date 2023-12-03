@@ -106,7 +106,7 @@ class Transformer(BaseAggregator):
         Y_hat = torch.argmax(Y_prob, dim= 1)
         # Y_hat = torch.topk(logits, 1, dim = 1)[1]
 
-        results_dict = {}
+        results_dict = {"embedding": x}
         return logits, Y_prob, Y_hat, _, results_dict
 
 

@@ -161,7 +161,7 @@ class ProtoMIL(nn.Module):
             instance_loss = self.instance_loss_fn(inst_logit, kwargs["label"])
             results_dict = {'instance_loss': instance_loss}
         else:
-            results_dict = {}
+            results_dict = {"embedding": sim_coding}
         return bag_logits, Y_prob, Y_hat, sim_coding, results_dict
 
     @staticmethod

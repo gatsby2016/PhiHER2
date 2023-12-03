@@ -89,7 +89,7 @@ class ABMIL(nn.Module):
         Y_hat = torch.argmax(Y_prob, dim= 1)
         # Y_hat = torch.topk(logits, 1, dim = 1)[1]
 
-        results_dict = {}
+        results_dict = {"embedding": h_path}
         return logits, Y_prob, Y_hat, A_raw, results_dict
     
     def captum(self, x_wsi):

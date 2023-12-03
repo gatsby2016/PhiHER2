@@ -64,7 +64,7 @@ class Transformer(nn.Module):
             self.mil_agg = nn.Sequential(*[nn.Linear(emb_dim, emb_dim), nn.ReLU(), nn.Dropout(dropout),
                                            Attn_Net_Gated(L=emb_dim, D=emb_dim, dropout=dropout, n_classes=1)])
         elif self.pool == "cls":
-            self.cls_token = nn.Parameter(torch.randn(1, 1, emb_dim))
+            self.cls_token = nn.Parameter(torch.rand(1, 1, emb_dim))
 
         self.norm = nn.LayerNorm(emb_dim)
         self.dropout = nn.Dropout(emb_dropout)
@@ -73,7 +73,11 @@ class Transformer(nn.Module):
 
     def forward(self, x, coords=None, register_hook=False, label=None):
         x = x.unsqueeze(0)
+        if x.shape[-1] != self.projection[0].in_features:
+            x = x.transpose(-1, -2)
+
         b, _, _ = x.shape
+        
 
         x = self.projection(x)
 
@@ -215,7 +219,7 @@ class ScaledDotProductAttention(nn.Module):
         
         attn = torch.matmul(q / self.temperature, k.transpose(2, 3))
         # attn = self.dropout(torch.softmax(attn, dim=-1))
-        attn = attn / torch.norm(k, p=2, dim=3, keepdim=True).transpose(2,3) / torch.norm(q, p=2)
+        attn = attn / (torch.norm(k, p=2, dim=3, keepdim=True).transpose(2,3)+1e-9) /(torch.norm(q, p=2)+1e-9)
 
         return attn
 
@@ -230,7 +234,7 @@ class ScaledDotProductAttention(nn.Module):
 class MultiHeadCrossAttention(nn.Module):
     ''' Multi-head cross-attention module '''
 
-    def __init__(self, num_cluster, num_head, input_dim, dim_k, dim_v, init_query=False, attn_dropout=0.1, dropout=0.1):
+    def __init__(self, num_cluster, num_head, input_dim, dim_k, dim_v, init_query=False, is_parameter=False, attn_dropout=0.1, dropout=0.1):
         super().__init__()
         
         self.input_dim = input_dim
@@ -242,15 +246,21 @@ class MultiHeadCrossAttention(nn.Module):
         self.init_query = init_query
 
         if self.init_query:
-            query = nn.Parameter(torch.empty((1, self.num_cluster, self.input_dim)))
+            query = torch.empty((1, self.num_cluster, self.input_dim))
+
             q_init_val = math.sqrt(1 / self.dim_k)
             nn.init.uniform_(query, a=-q_init_val, b=q_init_val)
+            # nn.init.normal_(query, mean=0, std=q_init_val)
+        
+            if is_parameter:
+                query = nn.Parameter(query)
+            else:
+                self.register_buffer("query", query)
             self.query = query
-
 
         self.q_w = nn.Linear(self.input_dim, self.num_head * self.dim_k, bias=False)
         self.k_w = nn.Linear(self.input_dim, self.num_head * self.dim_k, bias=False)
-        self.v_w = nn.Linear(self.input_dim, self.num_head * self.dim_v, bias=False)
+        # self.v_w = nn.Linear(self.input_dim, self.num_head * self.dim_v, bias=False)
 
         self.fc = nn.Linear(self.num_head * self.dim_v, self.input_dim, bias=False)
 
@@ -274,7 +284,7 @@ class MultiHeadCrossAttention(nn.Module):
         # project and separate heads
         q = self.q_w(self.query).view(1, self.num_cluster, self.num_head, self.dim_k)
         k = self.k_w(x).view(B, len_seq, self.num_head, self.dim_k)
-        v = self.v_w(x).view(B, len_seq, self.num_head, self.dim_v)
+        v = x.view(B, len_seq, self.num_head, self.dim_v)
 
         # transpose for attention dot product: B x num_head x len_seq (or num_cluster) x dim_k (or dim_v)
         q, k, v = q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2)
@@ -287,7 +297,7 @@ class MultiHeadCrossAttention(nn.Module):
         x = self.dropout(self.fc(x))
         # residual connection + layernorm
         # x += self.query
-        x = self.layer_norm(x) # B x num_cluster x input_dim
+        # x = self.layer_norm(x) # B x num_cluster x input_dim
         
         return x
 
@@ -352,7 +362,7 @@ class weightedSumClassifier(nn.Module):
         Y_hat = torch.argmax(Y_prob, dim= 1)
         # Y_hat = torch.topk(logits, 1, dim = 1)[1]
 
-        results_dict = {}
+        results_dict = {"embedding": sim_coding}
         return logits, Y_prob, Y_hat, _, results_dict
     
 
@@ -387,6 +397,8 @@ class AttenMIL(nn.Module):
 
     def forward(self, x, attention_only=False, test=False, return_select_x=False): 
         x = x.squeeze() #  N x feats_dim
+        if x.shape[-1] != self.attention_net[0].in_features:
+            x = x.t()
 
         if not test and self.top_num_inst is not None and self.top_num_inst < x.shape[0]:
             x = self.iterative_embed_selection(x_path=x, top_num=self.top_num_inst) 
@@ -445,28 +457,31 @@ class ProtoTransformer(nn.Module):
                  num_cluster=64, inst_num = None, inst_num_twice=None, random_inst=False,
                  attn_dropout=0.1, dropout=0.25, output_class=2,
                  cls_method=None, aux_loss_fn=nn.CrossEntropyLoss(), abmil_branch=False, 
-                 only_similarity=True,
+                 only_similarity=True, init_query=False, query_is_parameter=False,
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.cls_method = cls_method
-        self.inst_num = inst_num
         self.abmil_branch = abmil_branch
+        self.inst_num = inst_num
         self.inst_num_twice = inst_num_twice
-        
+
+        self.init_query = init_query
+        self.is_parameter = query_is_parameter
         self.only_similarity = only_similarity
-
-        self.projection = nn.Sequential(nn.Linear(feature_size, embed_size, bias=True), nn.ReLU())
-        # self.prototye_projection = nn.Sequential(nn.Linear(feature_size, embed_size, bias=True), nn.ReLU())
-
-        if self.inst_num_twice is not None: # inst_selection_twice:
-            self.inst_selection = inst_selector(input_dim=embed_size, inst_num = self.inst_num_twice, random=random_inst)
+        self.cls_method = cls_method
 
         if self.abmil_branch:
             self.aux_loss_fn = aux_loss_fn
-            self.abmil = AttenMIL(embed_size, hidden_size, dropout, inst_num=self.inst_num, output_class=output_class)
+            self.abmil = AttenMIL(feature_size, hidden_size, dropout, inst_num=self.inst_num, output_class=output_class)
+
+        if self.inst_num_twice is not None: # inst_selection_twice:
+            self.inst_selection = inst_selector(input_dim=feature_size, inst_num = self.inst_num_twice, random=random_inst)
+        
+        self.projection = nn.Sequential(nn.Linear(feature_size, embed_size, bias=True), nn.ReLU())
+        # self.prototye_projection = nn.Sequential(nn.Linear(feature_size, embed_size, bias=True), nn.ReLU())
 
         self.cross_attn = MultiHeadCrossAttention(num_cluster, num_head, input_dim=embed_size, 
-                                                  dim_k=embed_size//num_head, dim_v=embed_size//num_head, init_query=False,
+                                                  dim_k=embed_size//num_head, dim_v=embed_size//num_head, 
+                                                  init_query=self.init_query, is_parameter=self.is_parameter,
                                                   attn_dropout=attn_dropout, dropout=dropout)
         # self.mlp = MLP(embed_size, hidden_size, dropout=dropout)
 
@@ -474,6 +489,11 @@ class ProtoTransformer(nn.Module):
             self.transf = Transformer(num_classes=output_class, input_dim=embed_size, depth=1, 
                                       heads=num_head, dim_head=64, hidden_dim=hidden_size, 
                                       pool='cls', dropout=dropout, emb_dropout=0., pos_enc=None)
+        elif self.cls_method == "trans_sim":
+            self.transf = Transformer(num_classes=output_class, input_dim=num_cluster, depth=1, 
+                                      heads=num_head, dim_head=64, hidden_dim=hidden_size, 
+                                      pool='cls', dropout=dropout, emb_dropout=0., pos_enc=None)
+ 
         elif self.cls_method == "cls_keep_prototype_dim":
             self.transf = weightedSumClassifier(num_cluster, hidden_size, dropout, output_class, mean_dim=1)
 
@@ -481,6 +501,8 @@ class ProtoTransformer(nn.Module):
             self.transf = weightedSumClassifier(embed_size, hidden_size, dropout, output_class, mean_dim=0)
         elif self.cls_method == "cls_abmil":
             self.transf = AttenMIL(embed_size, hidden_size, dropout, inst_num=None, output_class=output_class)
+        elif self.cls_method == "cls_abmil_sim":
+            self.transf = AttenMIL(num_cluster, hidden_size, dropout, inst_num=None, output_class=output_class)
         
     def get_scores(self, x, prototype=None):
         x = self.projection(x.unsqueeze(0))
@@ -491,9 +513,6 @@ class ProtoTransformer(nn.Module):
         return attn.mean(dim=1).transpose(1, 2) # B x num_inst x num_prototype
 
     def forward(self, x_feats, prototype=None, label=None):
-        x_feats = self.projection(x_feats)
-        prototype = self.projection(prototype)
-
         if self.abmil_branch and label is not None:
             abmil_logit, _, _ = self.abmil(x_feats, return_select_x=True)
             aux_abmil_loss = self.aux_loss_fn(abmil_logit, label)
@@ -502,11 +521,14 @@ class ProtoTransformer(nn.Module):
             # x_feats = self.abmil.iterative_embed_selection(x_path=x_feats, top_num=self.inst_num_twice)     
             x_feats = self.inst_selection(x_feats)          
 
-        if not self.only_similarity:
+        x_feats = self.projection(x_feats)
+        prototype = self.projection(prototype)
+
+        if self.only_similarity:
+            x = self.cross_attn.get_attn(x_feats.unsqueeze(0), prototype).squeeze(1)
+        else:
             x = self.cross_attn(x_feats.unsqueeze(0), prototype) # B x num_cluster x feature_size
             # x = self.mlp(x) # B x num_cluster x feature_size
-        else:
-            x = self.cross_attn.get_attn(x_feats.unsqueeze(0), prototype).squeeze(1)
 
         logits, Y_prob, Y_hat, _, results_dict = self.transf(x.squeeze(0))
 

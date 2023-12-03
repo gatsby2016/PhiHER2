@@ -109,16 +109,18 @@ def _init_model(model_type=None, model_size="ccl2048", input_size=2048, drop_out
                             heads=4, dim_head=64, hidden_dim=512, 
                             pool='cls', dropout=drop_out, emb_dropout=0., pos_enc=None)
     elif model_type == "CLAM":
-        model = CLAM_SB(gate=True, size_arg=model_size, dropout=False, k_sample=32, instance_eval=True, n_classes=n_classes)
+        model = CLAM_SB(gate=True, size_arg=model_size, dropout=False, k_sample=8, instance_eval=True, n_classes=n_classes)
     elif model_type == "ProtoMIL":
         model = ProtoMIL(feature_size=input_size, hidden_size=512, cls_hidden_size=128,
                          num_cluster=n_cluster, topk_num=top_num_inst_twice, instance_eval=False,
-                         dropout=drop_out, output_class=n_classes, similarity_method="Cosine", aggregation_method="weightedsum_prototype")
+                         dropout=drop_out, output_class=n_classes, similarity_method="Cosine",
+                           aggregation_method="mean")
     elif model_type == "ProtoTransformer":
         model = ProtoTransformer(feature_size=input_size, embed_size=512, hidden_size=128, num_head=1,
                                  num_cluster=n_cluster, inst_num=top_num_inst, inst_num_twice=top_num_inst_twice, random_inst=False,
                                  attn_dropout=drop_out, dropout=drop_out, output_class=n_classes,
                                  cls_method="cls_keep_prototype_dim", abmil_branch=False, 
+                                 init_query=False, query_is_parameter=False,
                                  only_similarity=True)
     else:
         raise ValueError('Unsupported model_type:', model_type)
