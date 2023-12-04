@@ -1,11 +1,15 @@
 CKPTS:
   datasource: Yale
   task: "HER2status"  # recurrence or survival
-  exp_code: debug
+  exp_code: ProtoTransformer_linearcls_embedd_parallel_abmil2000_instsel500_share_h1_noresidual_time5
 
   data_root_dir: "/home/cyyan/Projects/HER2proj/results/Yale_2FeatsCCL" # data directory
   # 'csv file with slide_id and label information'
   csv_info_path: "/home/cyyan/Projects/HER2proj/data_ModPath_HER2_v3/Yale_HER2status.csv"
+
+  indep_data_root_dir: 
+  indep_csv_info_path: 
+  
   # IF not None, manually specify the set of splits to use
   split_dir: "/home/cyyan/Projects/HER2proj/results/Yale_3CaseSplits/her2status_KFoldsCV"
   results_dir: "/home/cyyan/Projects/HER2proj/models" # results directory (default: ./results)
@@ -22,6 +26,7 @@ TRAIN:
   num_perslide: # None will cover all samples, for data sampling, __getitem__
   n_classes: 2 # 'number of classes (4 bins for survival)'
   label_col: HER2status # label column name, type of survival (OS, DFS, PFI)')
+  labels_list: ["Negative", "Positive"]
   loss_func: CE # ['ce_surv', 'nll_surv', 'multi_surv'] 'slide-level classification loss function (default: nll_surv)'
   alpha_surv:  0.1 # 'How much to weigh uncensored patients between 0 and 1
   beta_surv:  # beta surv is used only when loss_func is multi_surv; beta val is for ce and 1 - beta is for nll

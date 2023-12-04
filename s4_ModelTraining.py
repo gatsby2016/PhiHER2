@@ -114,9 +114,9 @@ def multimes_kfolds_run(args, **kwargs):
 
 
 def main(args):
-    if args.task == "HER2status":
-        labels_dict = {'Negative':0, 'Positive':1}
-        filter_dict = {"HER2status": ["Negative", "Positive"]}
+    if args.task in ["HER2status", "MMPrisk"]:
+        labels_dict = dict(zip(args.labels_list, range(len(args.labels_list))))
+        filter_dict = {args.task: args.labels_list}
         dataset_factory = Generic_MIL_Dataset(csv_path = args.csv_info_path,
                                 data_dir= args.data_root_dir,
                                 shuffle = False, 
@@ -130,19 +130,22 @@ def main(args):
                                 ignore=[],
                                 num_perslide=args.num_perslide
                                 )
-        dataset_independent = Generic_MIL_Dataset(csv_path = args.indep_csv_info_path,
-                                data_dir= args.indep_data_root_dir,
-                                shuffle = False, 
-                                seed = args.seed, 
-                                print_info = True,
-                                label_dict = labels_dict,
-                                filter_dict = filter_dict,
-                                label_col = args.label_col,
-                                patient_voting='maj', # maj合理；max是对于一个patient多个slide标签选标签值最大，不合理
-                                patient_strat= True, # TRUE 表示按照patient进行划分split，且保证同一个patient的所有slide被split在同一区间内，如train或val；否则直接按slideID进行split
-                                ignore=[],
-                                num_perslide=args.num_perslide
-                                )
+        if args.indep_csv_info_path is None:
+            dataset_independent = None
+        else:    
+            dataset_independent = Generic_MIL_Dataset(csv_path = args.indep_csv_info_path,
+                                    data_dir= args.indep_data_root_dir,
+                                    shuffle = False, 
+                                    seed = args.seed, 
+                                    print_info = True,
+                                    label_dict = labels_dict,
+                                    filter_dict = filter_dict,
+                                    label_col = args.label_col,
+                                    patient_voting='maj', # maj合理；max是对于一个patient多个slide标签选标签值最大，不合理
+                                    patient_strat= True, # TRUE 表示按照patient进行划分split，且保证同一个patient的所有slide被split在同一区间内，如train或val；否则直接按slideID进行split
+                                    ignore=[],
+                                    num_perslide=args.num_perslide
+                                    )
     else:
         dataset_factory = Generic_MIL_Survival_Dataset(csv_path = args.csv_info_path,
                                             apply_sig = False,

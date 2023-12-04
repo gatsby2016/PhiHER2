@@ -24,14 +24,14 @@ datapath="/mnt/DATA/TJMUCH_data_total/70genes_1113data/"
 patchpath="/home/cyyan/Projects/HER2proj/results/TJMUCH70genes_1WsiPatching_40x"
 featspath="/home/cyyan/Projects/HER2proj/results/TJMUCH70genes_2FeatsCCL_40x"
 splitspath="/home/cyyan/Projects/HER2proj/results/TJMUCH70genes_3CaseSplits"
-csvinfopath=""
+csvinfopath="/mnt/DATA/TJMUCH_data_total/70genes_clinicalinfo_full_1202_OK.csv"
+labelname="MMPrisk"
 
 
 tocsvpath=$patchpath"/process_list_autogen.csv"
 cclmodelpth="/home/cyyan/Projects/HER2proj/models/CCL_best_ckpt.pth" # CCL_best_ckpt.pth ctranspath.pth
 resize_size=224
 # trainrespath="/home/cyyan/Projects/HER2proj/results/train"
-labelname="HER2status"
 
 
 
@@ -58,7 +58,7 @@ python s2_FeatsExtracting.py \
 	--float16
 fi
 
-if true; then
+if false; then
 echo "WsiPatching..."
 python s1_WsiTiling.py \
 	-s  $datapath \
@@ -70,7 +70,7 @@ python s1_WsiTiling.py \
 	--stitch
 fi
 
-if true; then
+if false; then
 echo "FeatsExtraction..."
 python s2_FeatsExtracting.py \
 	--feat_to_dir $featspath \
@@ -88,11 +88,11 @@ fi
 # --plip_tumor \
 
 
-if false; then
+if true; then
 echo "Cross Validation splitting ..."
 echo "N times K folds cross validation mode split."
 python s3_CaseSplitting.py \
-    --task_name "her2status" \
+    --task_name "MMPrisk" \
 	--csv_info_path $csvinfopath \
 	--split_to_dir $splitspath \
     --times 5 \
@@ -100,23 +100,23 @@ python s3_CaseSplitting.py \
 	--val_frac 0 \
 	--test_frac 0.2 \
 	--label_column_name $labelname \
-	--label_list "Negative" "Positive"\
+	--label_list "Low" "High"\
     --slide_featspath $featspath\
 	--seed 2020
 fi
 
-if false; then
+if true; then
 echo "N times train-val-test mode split."
 python s3_CaseSplitting.py \
-    --task_name "her2status" \
+    --task_name "MMPrisk" \
 	--csv_info_path $csvinfopath \
 	--split_to_dir $splitspath \
     --times 5 \
 	--kfold 0 \
 	--val_frac 0.2 \
-	--test_frac 0 \
+	--test_frac 0.2 \
 	--label_column_name $labelname \
-	--label_list "Negative" "Positive"\
+	--label_list "Low" "High"\
     --slide_featspath $featspath\
 	--seed 2020
 fi

@@ -138,7 +138,7 @@ if __name__ == "__main__":
     # args.test_frac = 0
     # args.times = 5
     # args.kfold = 5
-    args.filter_dict = {"HER2status": ["Negative", "Positive"]}
+    args.filter_dict = {args.label_column_name: args.label_list}
 
     casesplit = CaseSplitting(args.task_name, args.csv_info_path, args.split_to_dir, args.label_column_name, args.label_list, args.filter_dict,
                               args.seed, args.shuffle, tvtmode=args.kfold==0, slide_featspath=args.slide_featspath)

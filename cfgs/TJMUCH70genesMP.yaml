@@ -1,33 +1,33 @@
 CKPTS:
-  datasource: HEROHE
-  task: "HER2status"  # recurrence or survival
-  exp_code: new_PhiTrans_align_sim_tileAlltwice500_rep  # ProtoTransformer_linearcls_embedd_parallel_abmil2000_instsel500_share_h1_noresidual_time5
+  datasource: TJMUCH70genesMP
+  task: "MMPrisk"  # recurrence or survival
+  exp_code: abmil_tilea5k  # ProtoTransformer_linearcls_embedd_parallel_abmil2000_instsel500_share_h1_noresidual_time5
 
-  data_root_dir: /home/cyyan/Projects/HER2proj/results/HEROHE_train_2FeatsCCL_40x # data directory
+  data_root_dir: /home/cyyan/Projects/HER2proj/results/TJMUCH70genes_2FeatsCCL_40x # data directory
   # 'csv file with slide_id and label information'
-  csv_info_path: "/mnt/DATA/HEROHE_challenge/HEROHE_TrainGTinfo.csv"
+  csv_info_path: "/mnt/DATA/TJMUCH_data_total/70genes_clinicalinfo_full_1202_OK.csv"
 
-  indep_data_root_dir: /home/cyyan/Projects/HER2proj/results/HEROHE_test_2FeatsCCL_40x # data directory
-  indep_csv_info_path: "/mnt/DATA/HEROHE_challenge/HEROHE_TestGTinfo.csv"
+  indep_data_root_dir: 
+  indep_csv_info_path: 
   # IF not None, manually specify the set of splits to use
-  split_dir: /home/cyyan/Projects/HER2proj/results/HEROHE_3CaseSplits/her2status_TrainValTest
+  split_dir: /home/cyyan/Projects/HER2proj/results/TJMUCH70genes_3CaseSplits/MMPrisk_TrainValTest
   results_dir: "/home/cyyan/Projects/HER2proj/models" # results directory (default: ./results)
   # global_cluster_path: "/home/cyyan/Projects/HER2proj/results/HEROHE_3APCluster40xtumor"
-  cluster_path: "/home/cyyan/Projects/HER2proj/results/HEROHE_4APCluster40x"
+  # cluster_path: "/home/cyyan/Projects/HER2proj/results/HEROHE_4APCluster40x"
   cfg_to_name: "params_setting.txt"
 
 
 TRAIN:
-  model_type:  ProtoTransformer # ['ProtoTransformer', 'CLAM', 'ProtoMIL', 'ABMIL', 'Transformer'] type of model (default: clam_sb, clam w/ single attention branch)
+  model_type:  ABMIL # ['ProtoTransformer', 'CLAM', 'ProtoMIL', 'ABMIL', 'Transformer'] type of model (default: clam_sb, clam w/ single attention branch)
   encoding_dim:  2048 #'WSI patches encoding dim' [1024, 768, 2048]
   model_size: ccl2048  # ['resnet_small', 'ViT_small', 'ccl2048']' size of model, does not affect mil'
 
   top_num_inst:  # sampling `top_num_inst` instances in model forward according to attention scores, in model 
-  top_num_inst_twice: 500
-  num_perslide:  # None will cover all samples, for data sampling, __getitem__
+  top_num_inst_twice: 
+  num_perslide: 5000 # None will cover all samples, for data sampling, __getitem__
   n_classes: 2 # 'number of classes (4 bins for survival)'
-  label_col: HER2status # label column name, type of survival (OS, DFS, PFI)')
-  labels_list: ["Negative", "Positive"]
+  label_col: MMPrisk # label column name, type of survival (OS, DFS, PFI)')
+  labels_list: ["Low", "High"]
   loss_func: CE # ['ce_surv', 'nll_surv', 'multi_surv'] 'slide-level classification loss function (default: nll_surv)'
   alpha_surv:  0.1 # 'How much to weigh uncensored patients between 0 and 1
   beta_surv:  # beta surv is used only when loss_func is multi_surv; beta val is for ce and 1 - beta is for nll
