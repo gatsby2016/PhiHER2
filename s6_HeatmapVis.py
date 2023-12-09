@@ -14,6 +14,8 @@ from math import floor
 from utils.eval_utils import initiate_model as initiate_model
 from models.model_CLAM import CLAM_MB, CLAM_SB
 from models.model_ABMIL import ABMIL
+from models.model_ProtoTrans import ProtoTransformer
+
 
 from types import SimpleNamespace
 from collections import namedtuple
@@ -28,7 +30,7 @@ import utils.config_utils as cfg_utils
 
 def get_parser():
     parser = argparse.ArgumentParser(description='Heatmap inference script')
-    parser.add_argument('--config_file', type=str, default=None) # "scripts/HE2HER2/cfgs/heatmap_cfgs_template.yaml"
+    parser.add_argument('--config_file', type=str, default="scripts/HE2HER2/cfgs/heatmap_cfgs_template.yaml")
     parser.add_argument('--opts', help='see cfgs/heatmap_cfgs_template.yaml for all options', default=None, nargs=argparse.REMAINDER)
     args = parser.parse_args()
 
@@ -41,23 +43,24 @@ def get_parser():
     return cfg
 
 
-def infer_single_slide(model, features, label, reverse_label_dict, k=1):
+def infer_single_slide(model, features, label, reverse_label_dict, k=1, prototype_feat=None):
 	features = features.to(device)
 	with torch.no_grad():
 		if isinstance(model, (CLAM_SB, CLAM_MB, ABMIL)):
 			logits, Y_prob, Y_hat, A, results_dict = model(features, train=False)
-			
-			Y_hat = Y_hat.item()
+		elif isinstance(model, ProtoTransformer):
+			model.inst_num_twice = None
+			logits, Y_prob, Y_hat, A, results_dict = model(features, prototype=prototype_feat)
 
-			if isinstance(model, (CLAM_MB,)):
-				A = A[Y_hat]
+		Y_hat = Y_hat.item()
 
-			A = A.view(-1, 1).cpu().numpy()
+		if isinstance(model, (CLAM_MB,)):
+			A = A[Y_hat]
 
-		else:
-			raise NotImplementedError
+		A = A.view(-1, 1).cpu().numpy()
 
-		print('Y_hat: {}, Y: {}, Y_prob: {}'.format(reverse_label_dict[Y_hat], label, ["{:.4f}".format(p) for p in Y_prob.cpu().flatten()]))	
+
+		print('Y_hat: {}, Y_label: {}, Y_prob: {}'.format(reverse_label_dict[Y_hat], label, ["{:.4f}".format(p) for p in Y_prob.cpu().flatten()]))	
 		
 		probs, ids = torch.topk(Y_prob, k)
 		probs = probs[-1].cpu().numpy()
@@ -125,7 +128,8 @@ if __name__ == '__main__':
 			slides = [slide for slide in slides if args.slide_ext in slide] 
 		elif isinstance(args.spec_slide, str) and os.path.exists(args.spec_slide):
 			slides = pd.read_csv(args.spec_slide)
-			slides = slides['test'].dropna().tolist() # only get the test set samples for inference
+			slides["label"] = slides['HER2status'].map(args.label_dict)
+			# slides = slides['test'].dropna().tolist() # only get the test set samples for inference
 			
 		elif isinstance(args.spec_slide, list):
 			slides = args.spec_slide
@@ -142,12 +146,22 @@ if __name__ == '__main__':
 	print('\nlist of slides to process: ')
 	print(process_stack.head(len(process_stack)))
 
-	print('\ninitializing model from checkpoint')
+	print('\ninitializing model and prototypes from checkpoint')
+	device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
+		
+	prototype_data = torch.load(args.cluster_path)
+	global_cents_feats = prototype_data["global_centroid_feats"]
+	print("Estimate number of cluster (GLOBAL): {}".format(len(global_cents_feats)))
+	global_cents_feats = global_cents_feats.to(device)
+	args.num_cluster = len(global_cents_feats)
+	
 	ckpt_path = args.ckpt_path
 	print('\nckpt path: {}'.format(ckpt_path))
 	
 	if args.initiate_fn == 'initiate_model':
 		model =  initiate_model(args, ckpt_path)
+		model = model.to(device=device)	
+
 	else:
 		raise NotImplementedError
 
@@ -166,7 +180,6 @@ if __name__ == '__main__':
 		
 
 	feature_extractor.eval()
-	device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
 	print('Done!')
 
 	label_dict =  args.label_dict
@@ -186,7 +199,7 @@ if __name__ == '__main__':
 	'custom_downsample':args.custom_downsample, 'level': args.patch_level, 'use_center_shift': args.use_center_shift}
 
 	for i in range(len(process_stack)):
-		slide_name = process_stack.loc[i, 'slide_id']
+		slide_name = str(process_stack.loc[i, 'slide_id'])
 		if args.slide_ext not in slide_name:
 			slide_name+=args.slide_ext
 		print('\nprocessing: ', slide_name)	
@@ -285,7 +298,7 @@ if __name__ == '__main__':
 		##### check if h5_features_file exists ######
 		if not os.path.isfile(h5_path) :
 			_, _, wsi_object = compute_from_patches(wsi_object=wsi_object, 
-											model=model, 
+											model=model, prototype_feat=global_cents_feats,
 											feature_extractor=feature_extractor, 
 											batch_size=args.batch_size, **blocky_wsi_kwargs, 
 											attn_save_path=None, feat_save_path=h5_path, 
@@ -303,7 +316,8 @@ if __name__ == '__main__':
 		process_stack.loc[i, 'bag_size'] = len(features)
 		
 		wsi_object.saveSegmentation(mask_file)
-		Y_hats, Y_hats_str, Y_probs, A = infer_single_slide(model, features, label, reverse_label_dict, args.n_classes)
+		Y_hats, Y_hats_str, Y_probs, A = infer_single_slide(model, features, label, reverse_label_dict, args.n_classes,
+													  prototype_feat=global_cents_feats)
 		del features
 		
 		if not os.path.isfile(block_map_save_path): 
@@ -316,7 +330,7 @@ if __name__ == '__main__':
 		# save top 3 predictions
 		for c in range(args.n_classes):
 			process_stack.loc[i, 'Pred_{}'.format(c)] = Y_hats_str[c]
-			process_stack.loc[i, 'p_{}'.format(c)] = Y_probs[c]
+			process_stack.loc[i, 'prob_{}'.format(c)] = Y_probs[c]
 
 		# os.makedirs('heatmaps/results/', exist_ok=True)
 		if args.process_list is not None:
@@ -366,7 +380,8 @@ if __name__ == '__main__':
 			ref_scores = None
 		
 		if args.calc_heatmap:
-			compute_from_patches(wsi_object=wsi_object, clam_pred=Y_hats[0], model=model, feature_extractor=feature_extractor, batch_size=args.batch_size, **wsi_kwargs, 
+			compute_from_patches(wsi_object=wsi_object, clam_pred=Y_hats[0], model=model, prototype_feat=global_cents_feats,
+						feature_extractor=feature_extractor, batch_size=args.batch_size, **wsi_kwargs, 
 								attn_save_path=save_path,  ref_scores=ref_scores)
 
 		if not os.path.isfile(save_path):

@@ -6,6 +6,8 @@ import torch.nn.functional as F
 from models.model_MIL import MIL_fc, MIL_fc_mc
 from models.model_CLAM import CLAM_SB, CLAM_MB
 from models.model_ABMIL import ABMIL
+from models.model_ProtoTrans import ProtoTransformer
+
 
 import pdb
 import os
@@ -28,6 +30,14 @@ def initiate_model(args, ckpt_path):
         model = CLAM_SB(**model_dict)
     elif args.model_type =='clam_mb':
         model = CLAM_MB(**model_dict)
+    elif args.model_type == "ProtoTransformer":
+        model = ProtoTransformer(feature_size=2048, embed_size=512, hidden_size=128, num_head=1,
+                                 output_class=args.n_classes, 
+                                 attn_dropout=args.drop_out, dropout=args.drop_out,
+                                num_cluster=args.num_cluster, inst_num=None, inst_num_twice=500, random_inst=False,
+                                cls_method="cls_keep_prototype_dim", abmil_branch=False, 
+                                init_query=False, query_is_parameter=False,
+                                only_similarity=True)
     else: # args.model_type == 'mil'
         model = ABMIL(**model_dict)
         # if args.n_classes > 2:
@@ -38,14 +48,17 @@ def initiate_model(args, ckpt_path):
     print_network(model)
 
     ckpt = torch.load(ckpt_path)
-    ckpt_clean = {}
-    for key in ckpt.keys():
-        if 'instance_loss_fn' in key:
-            continue
-        ckpt_clean.update({key.replace('.module', ''):ckpt[key]})
-    model.load_state_dict(ckpt_clean, strict=True)
+    if args.model_type in ['clam_sb', 'ABMIL']:
+        ckpt_clean = {}
+        for key in ckpt.keys():
+            if 'instance_loss_fn' in key:
+                continue
+            ckpt_clean.update({key.replace('.module', ''):ckpt[key]})
+        model.load_state_dict(ckpt_clean, strict=True)
+        model.relocate()
+    else:
+        model.load_state_dict(torch.load(ckpt_path))
 
-    model.relocate()
     model.eval()
     return model
 

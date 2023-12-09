@@ -45,7 +45,7 @@ def initialize_wsi(wsi_path, seg_mask_path=None, seg_params=None, filter_params=
     wsi_object.saveSegmentation(seg_mask_path)
     return wsi_object
 
-def compute_from_patches(wsi_object, clam_pred=None, model=None, feature_extractor=None, batch_size=512,  
+def compute_from_patches(wsi_object, clam_pred=None, model=None, prototype_feat=None, feature_extractor=None, batch_size=512,  
     attn_save_path=None, ref_scores=None, feat_save_path=None, **wsi_kwargs):    
     top_left = wsi_kwargs['top_left']
     bot_right = wsi_kwargs['bot_right']
@@ -57,7 +57,7 @@ def compute_from_patches(wsi_object, clam_pred=None, model=None, feature_extract
     num_batches = len(roi_loader)
     print('number of batches: ', len(roi_loader))
     mode = "w"
-    for idx, (roi, coords) in enumerate(roi_loader):
+    for idx, (roi, coords, _) in enumerate(roi_loader):
         roi = roi.to(device)
         coords = coords.numpy()
         
@@ -65,7 +65,9 @@ def compute_from_patches(wsi_object, clam_pred=None, model=None, feature_extract
             features = feature_extractor(roi)
 
             if attn_save_path is not None:
-                A = model(features, attention_only=True)
+                # A = model(features, attention_only=True)
+                model.inst_num_twice = None
+                _, _, _, A, _ = model(features, prototype=prototype_feat)
            
                 if A.size(0) > 1: #CLAM multi-branch attention
                     A = A[clam_pred]

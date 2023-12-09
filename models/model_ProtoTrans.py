@@ -512,7 +512,7 @@ class ProtoTransformer(nn.Module):
         # Average over tasks is only required for multi-task learning (mnist).
         return attn.mean(dim=1).transpose(1, 2) # B x num_inst x num_prototype
 
-    def forward(self, x_feats, prototype=None, label=None):
+    def forward(self, x_feats, prototype=None, label=None, **kwargs):
         if self.abmil_branch and label is not None:
             abmil_logit, _, _ = self.abmil(x_feats, return_select_x=True)
             aux_abmil_loss = self.aux_loss_fn(abmil_logit, label)
@@ -535,4 +535,14 @@ class ProtoTransformer(nn.Module):
         if self.abmil_branch and label is not None:
             results_dict.update({'instance_loss': aux_abmil_loss})
 
-        return logits, Y_prob, Y_hat, _, results_dict
+        if 'proj_proto' in kwargs and kwargs['proj_proto']:
+            results_dict.update({"projection_prototype": prototype})
+            results_dict.update({"query_prototype": self.cross_attn.q_w(prototype)})
+        
+        if label is None:
+            inst_logits = self.transf.mlp_head(self.transf.linear(x.squeeze(0).t()))
+            inst_prob = F.softmax(inst_logits, dim = 1)
+            A = inst_prob[:, [1]].t()
+        else:
+            A = 0.0
+        return logits, Y_prob, Y_hat, A, results_dict

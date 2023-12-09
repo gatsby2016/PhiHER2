@@ -150,7 +150,7 @@ if __name__ == "__main__":
     print(">>>>>>>>>>>>>>>>>>>{}".format(model_dir))
 
     # params on dataset for indepedent evaluation
-    indepedent_dataset = "TJMUCH70genes"     # TCGA
+    indepedent_dataset = "HEROHE_test"     # TCGA
     common_result_dir = "/home/cyyan/Projects/HER2proj/results/"
     if indepedent_dataset in ["Yale"]:
         feats_path = "".join((common_result_dir, indepedent_dataset, "_2FeatsCCL"))
@@ -229,7 +229,7 @@ if __name__ == "__main__":
 
                     with torch.no_grad():
                         logits, Y_prob, Y_hat, _, res_dict = model(features.to(device).type(torch.float32), 
-                                                            prototype=global_cents_feats)
+                                                            prototype=global_cents_feats, proj_proto=True)
                     embedding = res_dict['embedding'].cpu().numpy().squeeze()
 
                     probs = Y_prob.cpu().numpy().squeeze(0)
@@ -250,9 +250,9 @@ if __name__ == "__main__":
                 eval_res.to_csv(os.path.join(model_dir, "time"+str(tidx), f"eval_{indepedent_dataset}_res.csv"))
                 
                 auc = roc_auc_score(all_labels_used, np.array(all_probs)[:, 1])
-                res_dict = classification_report(all_labels_used, np.array(all_preds), 
+                eval_res_dict = classification_report(all_labels_used, np.array(all_preds), 
                                                  target_names=['neg', 'pos'], output_dict=True)
-                for key, vals in res_dict.items():
+                for key, vals in eval_res_dict.items():
                     if type(vals) is dict:
                         for sub_key, sub_vals in vals.items():
                             print(f"{sub_key}: {sub_vals}")
@@ -261,9 +261,16 @@ if __name__ == "__main__":
                 
                 balanced_acc = balanced_accuracy_score(all_labels_used, np.array(all_preds)) # balanced accuracy is defined as the average of recall obtained on each class.
 
-            allfold_summary.append([tidx, kidx, auc, res_dict['pos']['f1-score'], balanced_acc])
+            allfold_summary.append([tidx, kidx, auc, eval_res_dict['pos']['f1-score'], balanced_acc])
 
             print(">>>>>>>>>>>>>>>>>>>Estimate auc value: {} in fold{} for time {}".format(auc, kidx, tidx))
+        
+            torch.save({'global_cents_feats': global_cents_feats,
+                        'projection_prototype': res_dict['projection_prototype'], 
+                        'query_prototype': res_dict['query_prototype']
+                        },
+                        os.path.join(model_dir, "time"+str(tidx), f"fold_{kidx}_prototypes_model_projection.pt"))
+
         allfold_summary = pd.DataFrame(np.array(allfold_summary), columns=['time', 'fold', 'test_auc', 'f1score', 'bal-acc'])   
         alltimes_summary.append(allfold_summary)   
 

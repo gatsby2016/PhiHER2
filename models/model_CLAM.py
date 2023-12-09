@@ -272,8 +272,8 @@ class CLAM_SB(nn.Module):
                 'inst_preds': np.array(all_preds)}
             else:
                 results_dict = {}
-            if return_features:
-                results_dict.update({'features': M})
+            results_dict.update({'embedding': self.rho(M)})
+            
             return logits, Y_prob, Y_hat, A_raw, results_dict
 
 class CLAM_MB(CLAM_SB):

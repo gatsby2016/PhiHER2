@@ -118,4 +118,4 @@ class Wsi_Region(Dataset):
         if self.custom_downsample > 1:
             patch = patch.resize(self.target_patch_size)
         patch = self.transforms(patch).unsqueeze(0)
-        return patch, coord 
+        return patch, coord, ""
