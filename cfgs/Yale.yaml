@@ -1,18 +1,20 @@
 CKPTS:
   datasource: Yale
   task: "HER2status"  # recurrence or survival
-  exp_code: ProtoTransformer_linearcls_embedd_parallel_abmil2000_instsel500_share_h1_noresidual_time5
+  exp_code: debug
 
   data_root_dir: "/home/cyyan/Projects/HER2proj/results/Yale_2FeatsCCL" # data directory
   # 'csv file with slide_id and label information'
   csv_info_path: "/home/cyyan/Projects/HER2proj/data_ModPath_HER2_v3/Yale_HER2status.csv"
+  wsi_root_dir: /home/cyyan/Projects/HER2proj/data_ModPath_HER2_v3/pkg_v3/Yale_HER2_cohort/SVS
 
   indep_data_root_dir: 
   indep_csv_info_path: 
-  
   # IF not None, manually specify the set of splits to use
   split_dir: "/home/cyyan/Projects/HER2proj/results/Yale_3CaseSplits/her2status_KFoldsCV"
   results_dir: "/home/cyyan/Projects/HER2proj/models" # results directory (default: ./results)
+
+  cluster_path: "/home/cyyan/Projects/HER2proj/results/Yale_4APCluster"
   cfg_to_name: "params_setting.txt"
 
 
@@ -21,9 +23,9 @@ TRAIN:
   encoding_dim:  2048 #'WSI patches encoding dim' [1024, 768, 2048]
   model_size: ccl2048  # ['resnet_small', 'ViT_small', 'ccl2048']' size of model, does not affect mil'
 
-  top_num_inst: 2000 # sampling `top_num_inst` instances in model forward according to attention scores, in model 
-  top_num_inst_twice: 500
-  num_perslide: # None will cover all samples, for data sampling, __getitem__
+  top_num_inst: # sampling `top_num_inst` instances in model forward according to attention scores, in model 
+  top_num_inst_twice: 
+  num_perslide: 100 # None will cover all samples, for data sampling, __getitem__
   n_classes: 2 # 'number of classes (4 bins for survival)'
   label_col: HER2status # label column name, type of survival (OS, DFS, PFI)')
   labels_list: ["Negative", "Positive"]
@@ -66,14 +68,9 @@ CLAM_spec:
   B: 16 # number of positive/negative patches to sample for clam
 
 CLUSTER:
-  lib: lib/select_train.ckpt # lib to save wsi id of train set
   preference: 0 # preference for AP clustering
   damping: 0.5 # damping for AP clustering
-  prototypes_index: cluster/prototypes_index.ckpt
-  global_ap_model: cluster/ap_model.pkl
   feat_dir: # path to save features
-  global_cluster_path: "/home/cyyan/Projects/HER2proj/results/Yale_3APCluster"
-  local_cluster_path: "/home/cyyan/Projects/HER2proj/results/Yale_3APCluster/local_files"
   lamb: 0.25
 
 

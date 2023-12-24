@@ -37,10 +37,10 @@ def loop_apcluster_folder(feat_root_dir, cluster_to_path, max_num=5000, **kwargs
     os.makedirs(cluster_to_path, exist_ok=True)
 
     feat_files = os.listdir(feat_root_dir)
-    feat_files = sorted([int(x.split(".")[0]) for x in feat_files]) # sorted as int(val)
+    # feat_files = sorted([int(x.split(".")[0]) for x in feat_files]) # sorted as int(val)
 
     for feat_name in feat_files:
-        feat_name = str(feat_name)+".pt"
+        # feat_name = str(feat_name)+".pt"
 
         full_path = os.path.join(feat_root_dir, feat_name)
         feats = torch.load(full_path)
@@ -122,7 +122,13 @@ def reserve_wsi_region(feats_idx, corrd_slide_id, wsi_slide_path=None, wsi_patch
 
     for idx in range(len(corrd_slide_id)):
         slide_id = corrd_slide_id[idx]
-        wsi = openslide.open_slide(os.path.join(wsi_slide_path, slide_id+".mrxs"))
+        if os.path.exists(os.path.join(wsi_slide_path, slide_id+".mrxs")):
+            slide_path = os.path.join(wsi_slide_path, slide_id+".mrxs")
+        else:
+            assert os.path.exists(os.path.join(wsi_slide_path, slide_id+".svs")), "mrxs and svs do not exist."
+            slide_path = os.path.join(wsi_slide_path, slide_id+".svs")
+
+        wsi = openslide.open_slide(slide_path)
         slide_idx = int(feats_idx[idx])
 
         h5_file_path = os.path.join(wsi_patch_path, "patches", slide_id+'.h5')
@@ -179,8 +185,9 @@ if __name__ == "__main__":
 
         for cur in folds:
 
-            labels_dict = {'Negative':0, 'Positive':1}
-            filter_dict = {"HER2status": ["Negative", "Positive"]}
+            labels_dict = dict(zip(args.labels_list, range(len(args.labels_list))))
+            filter_dict = {args.task: args.labels_list}
+
             dataset_factory = Generic_MIL_Dataset(csv_path = args.csv_info_path,
                                     data_dir= args.data_root_dir,
                                     shuffle = False, 
@@ -212,7 +219,7 @@ if __name__ == "__main__":
             print(f">>>>>>>>>>> APcluster_prototypes on split >>>>>>>>>>>>>>>> fold: {cur} on time: {timeidx}")
             global_apcluster_split(train_loader, args.cluster_path, "local_files", 
                                    timeidx, cur,
-                                   wsi_slide_path = "/mnt/DATA/HEROHE_challenge/TrainSet/",
+                                   wsi_slide_path = args.wsi_root_dir,
                                    wsi_patch_path = args.data_root_dir.replace("2FeatsCCL", "1WsiPatching"),
                                    lamb=args.lamb, preference=args.preference, 
                                    damping=args.damping, seed=args.seed) # only AP cluster prototypes for training dataset 

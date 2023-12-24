@@ -1,7 +1,7 @@
 CKPTS:
   datasource: TJMUCH70genesMP
   task: "MMPrisk"  # recurrence or survival
-  exp_code: abmil_tilea5k  # ProtoTransformer_linearcls_embedd_parallel_abmil2000_instsel500_share_h1_noresidual_time5
+  exp_code: debug  # ProtoTransformer_linearcls_embedd_parallel_abmil2000_instsel500_share_h1_noresidual_time5
 
   data_root_dir: /home/cyyan/Projects/HER2proj/results/TJMUCH70genes_2FeatsCCL_40x # data directory
   # 'csv file with slide_id and label information'
@@ -67,11 +67,8 @@ CLAM_spec:
   B: 16 # number of positive/negative patches to sample for clam
 
 CLUSTER:
-  lib: lib/select_train.ckpt # lib to save wsi id of train set
   preference: 0 # preference for AP clustering
   damping: 0.5 # damping for AP clustering
-  prototypes_index: cluster/prototypes_index.ckpt
-  global_ap_model: cluster/ap_model.pkl
   feat_dir: # path to save features
   lamb: 0.25
 

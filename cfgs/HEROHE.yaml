@@ -1,11 +1,12 @@
 CKPTS:
   datasource: HEROHE
   task: "HER2status"  # recurrence or survival
-  exp_code: new_PhiTrans_align_sim_tileAlltwice500_rep  # ProtoTransformer_linearcls_embedd_parallel_abmil2000_instsel500_share_h1_noresidual_time5
+  exp_code: debug  # ProtoTransformer_linearcls_embedd_parallel_abmil2000_instsel500_share_h1_noresidual_time5
 
   data_root_dir: /home/cyyan/Projects/HER2proj/results/HEROHE_train_2FeatsCCL_40x # data directory
   # 'csv file with slide_id and label information'
   csv_info_path: "/mnt/DATA/HEROHE_challenge/HEROHE_TrainGTinfo.csv"
+  wsi_root_dir: /mnt/DATA/HEROHE_challenge/TrainSet/
 
   indep_data_root_dir: /home/cyyan/Projects/HER2proj/results/HEROHE_test_2FeatsCCL_40x # data directory
   indep_csv_info_path: "/mnt/DATA/HEROHE_challenge/HEROHE_TestGTinfo.csv"
@@ -24,7 +25,7 @@ TRAIN:
 
   top_num_inst:  # sampling `top_num_inst` instances in model forward according to attention scores, in model 
   top_num_inst_twice: 500
-  num_perslide:  # None will cover all samples, for data sampling, __getitem__
+  num_perslide: 5000 # None will cover all samples, for data sampling, __getitem__
   n_classes: 2 # 'number of classes (4 bins for survival)'
   label_col: HER2status # label column name, type of survival (OS, DFS, PFI)')
   labels_list: ["Negative", "Positive"]
@@ -67,11 +68,8 @@ CLAM_spec:
   B: 16 # number of positive/negative patches to sample for clam
 
 CLUSTER:
-  lib: lib/select_train.ckpt # lib to save wsi id of train set
   preference: 0 # preference for AP clustering
   damping: 0.5 # damping for AP clustering
-  prototypes_index: cluster/prototypes_index.ckpt
-  global_ap_model: cluster/ap_model.pkl
   feat_dir: # path to save features
   lamb: 0.25
 
