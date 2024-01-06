@@ -13,7 +13,8 @@ CKPTS:
   split_dir: /home/cyyan/Projects/HER2proj/results/TJMUCH70genes_3CaseSplits/MMPrisk_TrainValTest
   results_dir: "/home/cyyan/Projects/HER2proj/models" # results directory (default: ./results)
   # global_cluster_path: "/home/cyyan/Projects/HER2proj/results/HEROHE_3APCluster40xtumor"
-  # cluster_path: "/home/cyyan/Projects/HER2proj/results/HEROHE_4APCluster40x"
+  cluster_path: "/home/cyyan/Projects/HER2proj/results/Yale_4APCluster_rmPos73"
+
   cfg_to_name: "params_setting.txt"
 
 

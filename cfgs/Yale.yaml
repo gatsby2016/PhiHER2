@@ -14,7 +14,7 @@ CKPTS:
   split_dir: "/home/cyyan/Projects/HER2proj/results/Yale_3CaseSplits/her2status_KFoldsCV"
   results_dir: "/home/cyyan/Projects/HER2proj/models" # results directory (default: ./results)
 
-  cluster_path: "/home/cyyan/Projects/HER2proj/results/Yale_4APCluster"
+  cluster_path: "/home/cyyan/Projects/HER2proj/results/Yale_4APCluster_rmPos73"
   cfg_to_name: "params_setting.txt"
 
 
@@ -24,8 +24,8 @@ TRAIN:
   model_size: ccl2048  # ['resnet_small', 'ViT_small', 'ccl2048']' size of model, does not affect mil'
 
   top_num_inst: # sampling `top_num_inst` instances in model forward according to attention scores, in model 
-  top_num_inst_twice: 
-  num_perslide: 100 # None will cover all samples, for data sampling, __getitem__
+  top_num_inst_twice: 1000
+  num_perslide:  # None will cover all samples, for data sampling, __getitem__
   n_classes: 2 # 'number of classes (4 bins for survival)'
   label_col: HER2status # label column name, type of survival (OS, DFS, PFI)')
   labels_list: ["Negative", "Positive"]
