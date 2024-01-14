@@ -540,9 +540,10 @@ class ProtoTransformer(nn.Module):
             results_dict.update({"query_prototype": self.cross_attn.q_w(prototype)})
         
         if label is None:
+            # A = 0.0
             inst_logits = self.transf.mlp_head(self.transf.linear(x.squeeze(0).t()))
             inst_prob = F.softmax(inst_logits, dim = 1)
-            A = inst_prob[:, [1]].t()
+            A = inst_prob[:, [Y_hat]].t()
         else:
             A = 0.0
         return logits, Y_prob, Y_hat, A, results_dict

@@ -81,11 +81,19 @@ def global_apcluster_split(train_loader, cluster_path, subfolder, timeidx, cur,
         
         data = torch.load(os.path.join(cluster_path, subfolder, slide_id+'.pt'))
         print("Loading, AP cluster for prototypes, {}, Number of cluster: {}".format(slide_id, len(data["centroid"])))
+        
+        # if slide_id == "Her2Pos_Case_73": # _rmPos73
+        #     print("Her2Pos_Case_73, continue.")
+        #     continue
+
         _, local_cent_feat, feat_idx = data["centroid"], data["centroid_feat"], data['feat_idx']
 
         all_local_cents_feats = torch.cat((all_local_cents_feats, local_cent_feat), dim=0)
         all_local_cents_idx = np.concatenate((all_local_cents_idx, feat_idx))
         all_slide_pos.extend([slide_id]*len(feat_idx))
+
+    # cluster_path = cluster_path + "_rmPos73"
+    # os.makedirs(cluster_path, exist_ok=True)
 
     if True:
         global_cents_indices, global_cents_feats, apmodel, usetime = global_set_apcluster(all_local_cents_feats, **kwargs)

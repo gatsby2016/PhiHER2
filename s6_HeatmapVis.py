@@ -128,8 +128,10 @@ if __name__ == '__main__':
 			slides = [slide for slide in slides if args.slide_ext in slide] 
 		elif isinstance(args.spec_slide, str) and os.path.exists(args.spec_slide):
 			slides = pd.read_csv(args.spec_slide)
-			slides["label"] = slides['HER2status'].map(args.label_dict)
-			# slides = slides['test'].dropna().tolist() # only get the test set samples for inference
+			if 'HER2status' in slides.columns:
+				slides["label"] = slides['HER2status'].map(args.label_dict)
+			elif 'test' in slides.columns:
+				slides = slides['test'].dropna().tolist() # only get the test set samples for inference
 			
 		elif isinstance(args.spec_slide, list):
 			slides = args.spec_slide

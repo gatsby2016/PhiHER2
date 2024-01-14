@@ -17,6 +17,10 @@ import math
 from utils.file_utils import save_hdf5
 from scipy.stats import percentileofscore
 
+from models.model_CLAM import CLAM_MB, CLAM_SB
+from models.model_ABMIL import ABMIL
+
+
 device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def score2percentile(score, ref):
@@ -65,9 +69,11 @@ def compute_from_patches(wsi_object, clam_pred=None, model=None, prototype_feat=
             features = feature_extractor(roi)
 
             if attn_save_path is not None:
-                # A = model(features, attention_only=True)
-                model.inst_num_twice = None
-                _, _, _, A, _ = model(features, prototype=prototype_feat)
+                if isinstance(model, (CLAM_SB, CLAM_MB, ABMIL)):
+                    A = model(features, attention_only=True)
+                else:
+                    model.inst_num_twice = None
+                    _, _, _, A, _ = model(features, prototype=prototype_feat)
            
                 if A.size(0) > 1: #CLAM multi-branch attention
                     A = A[clam_pred]
