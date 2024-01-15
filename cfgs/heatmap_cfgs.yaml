@@ -5,9 +5,9 @@ exp_arguments:
   # name tag for saving generated figures and assets
   save_exp_code: HEATMAP_OUTPUT_scorer
   # where to save raw asset files
-  raw_save_dir: /home/cyyan/Projects/HER2proj/results/Yale_4Heatmaps_PhiTrans_yhat/heatmap_raw
+  raw_save_dir: /home/cyyan/Projects/HER2proj/results/Yale_4Heatmaps_PhiHER2_yhat/heatmap_raw
   # where to save final heatmaps
-  production_save_dir: /home/cyyan/Projects/HER2proj/results/Yale_4Heatmaps_PhiTrans_yhat/heatmap_production_hd
+  production_save_dir: /home/cyyan/Projects/HER2proj/results/Yale_4Heatmaps_PhiHER2_yhat/heatmap_production_hd
   batch_size: 384
 data_arguments: 
   # where is data stored; can be a single str path or a dictionary of key, data_dir mapping
@@ -36,7 +36,7 @@ model_arguments:
   # arguments for initializing model from checkpoint
   # ckpt_path: /home/cyyan/Projects/HER2proj/models/Yale/HER2status/ABMIL_insttop2000_0dropout_lossCE_1WSampling/time0/s_3_checkpoint.pt
   # ckpt_path: "/home/cyyan/Projects/HER2proj/models/HEROHE/HER2status/new_ABMIL_tile5k_all/time0/s_0_checkpoint.pt"
-  ckpt_path: "/home/cyyan/Projects/HER2proj/models/Yale/HER2status/new_PhiTrans_tileAll_twice1000_0abmil_0sel/time0/s_1_checkpoint.pt"
+  ckpt_path: "/home/cyyan/Projects/HER2proj/models/Yale/HER2status/new_PhiHER2_tileAll_twice1000_0abmil_0sel/time0/s_1_checkpoint.pt"
   cluster_path: "/home/cyyan/Projects/HER2proj/results/Yale_4APCluster_rmPos73/time_0_fold_1_prototypes.pt"
   model_type:  ProtoTransformer #ABMIL see utils/eval_utils/
   initiate_fn: initiate_model # see utils/eval_utils/
@@ -84,7 +84,7 @@ sample_arguments:
 
 s7_clusterPatternVis arguments:
   # path of the visualization outputs
-  interactive_vis_dir: /home/cyyan/Projects/HER2proj/results/Yale_4Heatmaps_PhiTrans_yhat/Interactive_vis_tiles
+  interactive_vis_dir: /home/cyyan/Projects/HER2proj/results/Yale_4Heatmaps_PhiHER2_yhat/Interactive_vis_tiles
   # See tiles corresponding to a particular value of the target variable. Coincide with the names of the folders in path/hightiles/'
   vis_target_val:
   # when tagged, use the decision embeddings (related to the target variable).

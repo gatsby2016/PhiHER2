@@ -1,6 +1,6 @@
-# PhiTrans
+# PhiHER2
 
-The offical implementation of **PhiTrans: Phenotype-guided weakly supervised model for HER2 status prediction from pathological images**.
+The offical implementation of **PhiHER2: Phenotype-guided weakly supervised model for HER2 status prediction from pathological images**.
 
 ![overview](docs/github_overview.png)
 
@@ -10,7 +10,7 @@ The offical implementation of **PhiTrans: Phenotype-guided weakly supervised mod
 
 Description will be released soon.
 
-## Unique capability of PhiTrans
+## Unique capability of PhiHER2
 
 ![wsi_heatmap](docs/github_wsi_heatmap.png)
 
@@ -32,7 +32,7 @@ The packages required have been provided in the file [requirements.txt](requirem
 
 ### Installation
 
-<!-- PhiTrans is implemented by Python 3.8 and PyTorch 2.0.  -->
+<!-- PhiHER2 is implemented by Python 3.8 and PyTorch 2.0.  -->
 To install the environment, you can run the command in the terminal:
 
 ```shell
@@ -170,7 +170,7 @@ python s4_HPcluster_prototypes.py --config_file cfgs/HEROHE.yaml
 
 The config hyperparameters file `cfgs/HEROHE.yaml` can be refered to [HERE](#parameter-configs)
 
-(4) PhiTrans MIL **model training**
+(4) PhiHER2 MIL **model training**
 
 ```shell
 python s4_ModelTraining.py --config cfgs/HEROHE.yaml
