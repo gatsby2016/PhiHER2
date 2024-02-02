@@ -75,9 +75,9 @@ library(cowplot)
 library(ggpubr)
 
 root_path = "/home/cyyan/Projects/HER2proj/models/HEROHE/HER2status"
-# exp_name = "new_PhiTrans_sim_tile5ktwice500_selfqueryparam_uniform"
-# exp_name = "new_PhiTrans_align_sim_tile5k_1abmil0sel"
-exp_name = "new_PhiTrans_align_sim_tile5ktwice500"
+# exp_name = "new_PhiHER2_sim_tile5ktwice500_selfqueryparam_uniform"
+# exp_name = "new_PhiHER2_align_sim_tile5k_1abmil0sel"
+exp_name = "new_PhiHER2_align_sim_tile5ktwice500"
 
 # for (i in 1:5){
 #   timeidx = paste0("time", i)
