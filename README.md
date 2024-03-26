@@ -1,6 +1,6 @@
 # PhiHER2
 
-The offical implementation of **PhiHER2: Phenotype-guided weakly supervised model for HER2 status prediction from pathological images**.
+The official implementation of **PhiHER2: Phenotype-guided weakly supervised model for HER2 status prediction from pathological images**.
 
 ![overview](docs/github_overview.png)
 
@@ -294,6 +294,9 @@ python s6_HeatmapVis.py --config_file cfgs/heatmap_cfgs.yaml --opts \
         ckpt_path <pre-trained model names, eg. xx/s_1.pt> \
         cluster_path <pre-clustered prototypes, eg. xx/t0_1.pt>
 ```
+where the parameter `ckpt_path` is the path of the trained models, and `cluster_path` represents the path of the embedding files. You can find and download the trained models and pre-clustered prototype embedding files from our shared OneDrive link below.
+
+The pre-clustered prototype embedding file would be loaded and passed into the model for guidance and prediction.
 
 ### Trained models weights
 
