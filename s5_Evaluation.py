@@ -169,7 +169,7 @@ if __name__ == "__main__":
     print(">>>>>>>>>>>>>>>>>>>{}".format(model_dir))
 
     # params on dataset for indepedent evaluation
-    indepedent_dataset = "TJMUCH70genes"     # TCGA
+    indepedent_dataset = "HEROHE_test"     # TCGA
     common_result_dir = "/home/cyyan/Projects/HER2proj/results/"
     if indepedent_dataset in ["Yale"]:
         feats_path = "".join((common_result_dir, indepedent_dataset, "_2FeatsCCL"))
@@ -188,7 +188,9 @@ if __name__ == "__main__":
         feats_path = "".join((common_result_dir, indepedent_dataset, "_2FeatsCCL_40x"))
         csv_path = "/mnt/DATA/TJMUCH_data_total/70genes_clinicalinfo_full_1202_OK.csv"
 
-    slide_id_list, slide_label_list = load_data(csv_path, label_mapping={"Negative": 0, "Positive": 1},
+
+    if os.path.isfile(csv_path):
+        slide_id_list, slide_label_list = load_data(csv_path, label_mapping={"Negative": 0, "Positive": 1},
                                                 filter_dict={"HER2status": ["Negative", "Positive"]})
 
 
