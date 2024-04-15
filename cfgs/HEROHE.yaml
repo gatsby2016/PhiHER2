@@ -19,7 +19,7 @@ CKPTS:
 
 
 TRAIN:
-  model_type:  ProtoTransformer # ['ProtoTransformer', 'CLAM', 'ProtoMIL', 'ABMIL', 'Transformer'] type of model (default: clam_sb, clam w/ single attention branch)
+  model_type:  PhiHER2 # ['PhiHER2', 'CLAM', 'ProtoMIL', 'ABMIL', 'Transformer'] type of model (default: clam_sb, clam w/ single attention branch)
   encoding_dim:  2048 #'WSI patches encoding dim' [1024, 768, 2048]
   model_size: ccl2048  # ['resnet_small', 'ViT_small', 'ccl2048']' size of model, does not affect mil'
 

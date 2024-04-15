@@ -1,21 +1,56 @@
-# PhiHER2
+# PhiHER2: Phenotype-informed weakly supervised model for HER2 status prediction from WSIs
 
-The official implementation of **PhiHER2: Phenotype-guided weakly supervised model for HER2 status prediction from pathological images**.
+> [**PhiHER2: Phenotype-informed weakly supervised model for HER2 status prediction from pathological images**]() <br>
+> Chaoyang Yan, Jialiang Sun, Yiming Guan, Jiuxin Feng, Hong Liu* and Jian Liu*. <br>
+> Nankai University, Tianjin Medical University Cancer Institute & Hospital <br>
+> ISMB 2024 <br>
+
 
 ![overview](docs/github_overview.png)
 
 
 
-## Description
+## WHY and WHAT WE DO   
+<details>
+  <summary>
+	  <b>Motivation</b>
+  </summary>
 
-Description will be released soon.
+HER2 status identification enables physicians to assess the prognosis risk and determine the treatment schedule for patients. In clinical practice, pathological slides serve as the gold standard, offering morphological information on cellular structure and tumoral regions. Computational analysis of pathological images has the potential to discover morphological patterns associated with HER2 molecular targets and achieve precise status prediction. 
 
-## Unique capability of PhiHER2
+Pathological images often equipped with high-resolution attributes, and corresponding labels are scarce. This makes the precise status prediction challenging.
+
+HER2 expression in breast cancer images is often characterized by intratumoral heterogeneity, manifesting as the coexistence
+of positive and negative cells in tumor sections.
+This prompts us to explore how to discover morphologically representative and heterogeneous content from pathological slides.
+</details>
+
+
+<details>
+  <summary>
+	  <b>Key Ideas & Main Findings</b>
+  </summary>
+
+1. A phenotype-informed weakly supervised learning architecture (PhiHER2) for automated HER2 status prediction of BC from H&E-stained WSIs. It leverages multiple instance learning and is applicable to high-resolution WSIs, enabling the automatic identification of key regions without the requirement for manual ROI annotation (annotation-free). 
+
+2. A hierarchical prototype clustering module is designed to discover phenotypes that reveals the morphological patterns exhibited across pathological WSIs. 
+
+3. Phenotype embeddings are introduced into the MIL framework for feature aggregation with the cross-attention module. It enhances interaction among instances and captures a prototype-based feature space equipped with intratumoral heterogeneity for HER2 status prediction. 
+
+4. An overlapping heatmap visualization approach is developed for the interpretability analysis on WSIs. It uncovers the associations of morphological patterns with molecular HER2 status. 
+
+</details>
+
+
+## Unique capability of PhiHER2, interpretability
+
+PhiHER2 significantly outperforms existing methods on real-world datasets. 
+
+Interpretability analyses of both phenotypes and WSIs provide explicit insights into the heterogeneity of morphological patterns associated with molecular HER2 status.
+
+![wsi_heatmap](docs/github_phenotypes.png)
 
 ![wsi_heatmap](docs/github_wsi_heatmap.png)
-
-Detailed capability of our model will be released soon.
-
 
 
 # User Guide
@@ -43,7 +78,7 @@ pip install -r requirements.txt
 
 NOTING: The codes require package `openslide python`, but its installation is different between Linux and Windows. Please follow the [offical documentation](https://openslide.org/api/python/) to install and import it in python to make sure it can work correctly. 
 
-`timm` library should also be installed as described in [TransPath](https://github.com/Xiyue-Wang/TransPath).
+If `ctranspath` feature extractor is further used (which is not utilized in our work), `timm` library should be installed as described in [TransPath](https://github.com/Xiyue-Wang/TransPath).
 
 ## 2. Data 
 
@@ -199,66 +234,66 @@ A hyper-parameters-configured example for **HEROHE dataset** is given below
 ```YAML
 CKPTS:
   datasource: HEROHE
-  task: "HER2status"  # task name
-  exp_code: debug  # set exp name
+  task: "HER2status"                                                                            # task name
+  exp_code: debug                                                                               # set exp name
 
-  data_root_dir: /home/cyyan/Projects/HER2proj/results/HEROHE_train_2FeatsCCL_40x # features representation data directory for training data
-  csv_info_path: "/mnt/DATA/HEROHE_challenge/HEROHE_TrainGTinfo.csv" # csv file wih slide info and her2status info.
-  wsi_root_dir: /mnt/DATA/HEROHE_challenge/TrainSet/ # wsi root path
+  data_root_dir: /home/cyyan/Projects/HER2proj/results/HEROHE_train_2FeatsCCL_40x               # features representation data directory for training data
+  csv_info_path: "/mnt/DATA/HEROHE_challenge/HEROHE_TrainGTinfo.csv"                            # csv file wih slide info and her2status info.
+  wsi_root_dir: /mnt/DATA/HEROHE_challenge/TrainSet/                                            # wsi root path
 
-  indep_data_root_dir: /home/cyyan/Projects/HER2proj/results/HEROHE_test_2FeatsCCL_40x # features representation data directory for indepedent test data
-  indep_csv_info_path: "/mnt/DATA/HEROHE_challenge/HEROHE_TestGTinfo.csv" # indepedent test csv file wih slide info and her2status info.
-  split_dir: /home/cyyan/Projects/HER2proj/results/HEROHE_3CaseSplits/her2status_TrainValTest # casesplitting root path
-  results_dir: "/home/cyyan/Projects/HER2proj/models" # results directory for model, logs, and test evaluation results
-  cluster_path: "/home/cyyan/Projects/HER2proj/results/HEROHE_4APCluster40x" # root path for cluster prototype embeddings on splits
-  cfg_to_name: "params_setting.txt" # hyper-params file for saving
+  indep_data_root_dir: /home/cyyan/Projects/HER2proj/results/HEROHE_test_2FeatsCCL_40x          # features representation data directory for indepedent test data
+  indep_csv_info_path: "/mnt/DATA/HEROHE_challenge/HEROHE_TestGTinfo.csv"                       # indepedent test csv file wih slide info and her2status info.
+  split_dir: /home/cyyan/Projects/HER2proj/results/HEROHE_3CaseSplits/her2status_TrainValTest   # casesplitting root path
+  results_dir: "/home/cyyan/Projects/HER2proj/models"                                           # results directory for model, logs, and test evaluation results
+  cluster_path: "/home/cyyan/Projects/HER2proj/results/HEROHE_4APCluster40x"                    # root path for cluster prototype embeddings on splits
+  cfg_to_name: "params_setting.txt"                                                             # hyper-params setting file for saving
 
 TRAIN:
-  model_type:  ProtoTransformer # ['ProtoTransformer', 'CLAM', 'ProtoMIL', 'ABMIL', 'Transformer'] type of model 
-  encoding_dim:  2048 #'patch encoding dim'
-  model_size: ccl2048  # ['resnet_small', 'ViT_small', 'ccl2048']' size of model, does not affect mil', only for ABMIL and CLAM
+  model_type:  PhiHER2              # ['PhiHER2', and comparative models: 'CLAM', 'ProtoMIL', 'ABMIL', 'Transformer'] type of model 
+  encoding_dim:  2048               #'patch encoding dim'
+  model_size: ccl2048               # ['resnet_small', 'ViT_small', 'ccl2048']' size of model, does not affect mil', only for ABMIL and CLAM
 
-  top_num_inst:  # sampling `top_num_inst` instances in model forward according to attention scores, only for ABMIL.
-  top_num_inst_twice: 500 # None will cover all samples, the number for iterative sampling 
-  num_perslide: 5000 # None will cover all samples, the number for random sampling 
-  n_classes: 2 # 'number of classes '
-  label_col: HER2status # label column name
+  top_num_inst:                     # sampling `top_num_inst` instances in model forward according to attention scores, only for ABMIL.
+  top_num_inst_twice: 500           # None will cover all samples, the number for iterative sampling 
+  num_perslide: 5000                # None will cover all samples, the number for random sampling 
+  n_classes: 2                      # 'number of classes '
+  label_col: HER2status             # label column name
   labels_list: ["Negative", "Positive"]
-  loss_func: CE # slide-level classification loss function
+  loss_func: CE                     # slide-level classification loss function
 
-  log_data: True # log data using tensorboard
-  weighted_sample: True # 'enable weighted sampling
+  log_data: True                    # log data using tensorboard
+  weighted_sample: True             # 'enable weighted sampling
   
 HyperParams:
-  max_epochs: 1000 # 'maximum number of epochs to train (default: 1000)'
-  batch_size: 1 # batch size commonly set to 1 for MIL, we utilized Gradient Accumulation below.
-  gc: 32 # 'Gradient Accumulation Step.' HERE, Gradient Accumulation is equal to common batch size.
-  lr: 0.0001 # 'learning rate (default: 0.0001)'
-  optim: adam  # optimizer, adam sgd adamW radam Lamb
-  scheduler: LinearLR # optimizer scheduler [CosineAnnealingLR CyclicLR LinearLR OneCycleLR StepLR]
-  drop_out: 0. # a float num, enable dropout (p=0.25)'
-  early_stopping: True  # enable early stopping
+  max_epochs: 1000                  # 'maximum number of epochs to train (default: 1000)'
+  batch_size: 1                     # batch size commonly set to 1 for MIL, we utilized Gradient Accumulation below.
+  gc: 32                            # 'Gradient Accumulation Step.' HERE, Gradient Accumulation is equal to common batch size.
+  lr: 0.0001                        # 'learning rate (default: 0.0001)'
+  optim: adam                       # optimizer, adam sgd adamW radam Lamb
+  scheduler: LinearLR               # optimizer scheduler [CosineAnnealingLR CyclicLR LinearLR OneCycleLR StepLR]
+  drop_out: 0.                      # a float num, enable dropout (p=0.0)'
+  early_stopping: True              # enable early stopping
 
-  reg: 0.00001 # 'weight decay (default: 1e-5)'
-  lambda_reg: 0.00001 # 'L1-Regularization Strength (Default 1e-5)'
+  reg: 0.00001                      # 'weight decay (default: 1e-5)'
+  lambda_reg: 0.00001               # 'L1-Regularization Strength (Default 1e-5)'
 
 CROSSVALIDATAION:
-  times: 5 # number of times (default: 5)
-  t_start: -1 # start time (default: -1, last time)
-  t_end: -1 # end time (default: -1, first time)
-  k: 1 # number of folds (default: 10)
-  k_start: -1 # start fold (default: -1, last fold)
-  k_end: -1 # end fold (default: -1, first fold)
+  times: 5                          # number of times (default: 5)
+  t_start: -1                       # start time (default: -1, last time)
+  t_end: -1                         # end time (default: -1, first time)
+  k: 1                              # number of folds (default: 1), if on Yale cohort, set to 5
+  k_start: -1                       # start fold (default: -1, last fold)
+  k_end: -1                         # end fold (default: -1, first fold)
 
-CLUSTER: # for Hierarchical prototype clustering
-  preference: 0 # preference for AP cluster alg.
-  damping: 0.5 # damping for AP cluster alg.
-  lamb: 0.25 # lamb params for AP cluster alg.
+CLUSTER:                            # for Hierarchical prototype clustering
+  preference: 0                     # preference for AP cluster alg.
+  damping: 0.5                      # damping for AP cluster alg.
+  lamb: 0.25                        # lamb params for AP cluster alg.
 
 COMMON:
   gpu: '0'
-  seed: 2020 # 'random seed for reproducible experiment (default: 2020)'
-  workers: 8  # data loader workers
+  seed: 2020                        # 'random seed for reproducible experiment (default: 2020)'
+  workers: 8                        # data loader workers
 ```
 
 You can also set your own configs with the comment guidance.
@@ -302,12 +337,17 @@ The pre-clustered prototype embedding file would be loaded and passed into the m
 
 The pre-trained weights and pre-clusterd prototypes embeddings of our model on the HEROHE dataset and the Yale cohort can be downloaded in [HERE, Password: `jV5.mB2!qD`](https://mailnankaieducn-my.sharepoint.com/:f:/g/personal/1120220274_mail_nankai_edu_cn/EiO6Ji1eZwtJo3l2N9_eMLkBTwlj3gUf9iQmsG-Ru8pdlw?e=lFdeg0). The weights can be used to reproduce the results in our paper. Also, It has the capability of inferring on new H&E WSIs.
 
+
+## Contact
+
+If you have any problems, just raise an issue in this repo.
+
+
 ## Acknowledgements
 
 Our code is developed on the top of [CLAM](https://github.com/mahmoodlab/CLAM). Part of the code is borrowed from [HistoBistro](https://github.com/peng-lab/HistoBistro) and [PMIL](https://github.com/Zero-We/PMIL).
 
 (cheers to the community as well)
 
-## Contact
+If you found our work useful in your research, please consider citing our works(s) at:
 
-If you have any problems, just raise an issue in this repo.

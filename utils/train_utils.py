@@ -115,7 +115,7 @@ def _init_model(model_type=None, model_size="ccl2048", input_size=2048, drop_out
                          num_cluster=n_cluster, topk_num=top_num_inst_twice, instance_eval=False,
                          dropout=drop_out, output_class=n_classes, similarity_method="Cosine",
                            aggregation_method="mean")
-    elif model_type == "ProtoTransformer":
+    elif model_type == "PhiHER2":
         model = ProtoTransformer(feature_size=input_size, embed_size=512, hidden_size=128, num_head=1,
                                  num_cluster=n_cluster, inst_num=top_num_inst, inst_num_twice=top_num_inst_twice, random_inst=False,
                                  attn_dropout=drop_out, dropout=drop_out, output_class=n_classes,
@@ -643,7 +643,7 @@ def train_val(timeidx, cur, args, **kwargs):
     train_split, val_split, test_split = _get_splits(datasets, cur)
     train_loader, val_loader, test_loader = _init_loaders(args, train_split, val_split, test_split)
 
-    if args.model_type in ["ProtoMIL", "ProtoTransformer"]:
+    if args.model_type in ["ProtoMIL", "PhiHER2"]:
         data = torch.load(os.path.join(args.cluster_path, f"time_{timeidx}_fold_{cur}_prototypes.pt"))
         prototype_feats = data["global_centroid_feats"].to(args.device)
         print(f"Loading, [GLOBAL] AP cluster for prototypes, Number of cluster: {len(prototype_feats)}")
