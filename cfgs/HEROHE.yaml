@@ -1,7 +1,7 @@
 CKPTS:
   datasource: HEROHE
   task: "HER2status"  # recurrence or survival
-  exp_code: debug  # ProtoTransformer_linearcls_embedd_parallel_abmil2000_instsel500_share_h1_noresidual_time5
+  exp_code: debug
 
   data_root_dir: /home/cyyan/Projects/HER2proj/results/HEROHE_train_2FeatsCCL_40x # data directory
   # 'csv file with slide_id and label information'

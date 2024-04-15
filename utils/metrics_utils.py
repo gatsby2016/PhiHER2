@@ -65,8 +65,7 @@ def calc_metrics(data_path, folds, times):
 
 if __name__ == "__main__":
 
-    data_path = "/home/cyyan/Projects/HER2proj/models/HEROHE/HER2status/ProtoTransformer40x_0mlp/"
-    # data_path = "/home/cyyan/Projects/HER2proj/models/Yale/HER2status/ProtoTransformer_linearcls_embedd_abmilall_twice500split_share_h1_time5/"
+    data_path = "../../models/HEROHE/HER2status/debug"
     times = 5
     folds = 1
 

@@ -13,7 +13,7 @@ for top_num_inst_twice in "${list_num_perslide[@]}"; do
 
     ## >>>>>>>>>>>>>>>> 下面这里需要根据实验情况每次进行修改 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     exp_code=new_PhiHER2_tileAll_twice${top_num_inst_twice}_0abmil_0sel
-    model_type=ProtoTransformer # ['ProtoTransformer', 'CLAM', 'ProtoMIL', 'ABMIL', 'Transformer']
+    model_type=PhiHER2 # ['PhiHER2', 'CLAM', 'ProtoMIL', 'ABMIL', 'Transformer']
 
     top_num_inst=None
     # top_num_inst_twice=None

@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from models.model_MIL import MIL_fc, MIL_fc_mc
 from models.model_CLAM import CLAM_SB, CLAM_MB
 from models.model_ABMIL import ABMIL
-from models.model_ProtoTrans import ProtoTransformer
+from models.model_ProtoTrans import PhiHER2model
 
 
 import pdb
@@ -30,8 +30,8 @@ def initiate_model(args, ckpt_path):
         model = CLAM_SB(**model_dict)
     elif args.model_type =='clam_mb':
         model = CLAM_MB(**model_dict)
-    elif args.model_type == "ProtoTransformer":
-        model = ProtoTransformer(feature_size=2048, embed_size=512, hidden_size=128, num_head=1,
+    elif args.model_type == "PhiHER2":
+        model = PhiHER2model(feature_size=2048, embed_size=512, hidden_size=128, num_head=1,
                                  output_class=args.n_classes, 
                                  attn_dropout=args.drop_out, dropout=args.drop_out,
                                 num_cluster=args.num_cluster, inst_num=None, inst_num_twice=500, random_inst=False,

@@ -12,7 +12,7 @@ from models.model_ABMIL import ABMIL
 from models.model_CLAM import CLAM_SB
 from models.transformer import Transformer
 from models.model_PMIL import ProtoMIL
-from models.model_ProtoTrans import ProtoTransformer
+from models.model_ProtoTrans import PhiHER2model
 
 from sksurv.metrics import concordance_index_censored, concordance_index_ipcw, brier_score, integrated_brier_score, cumulative_dynamic_auc
 from sksurv.util import Surv
@@ -116,7 +116,7 @@ def _init_model(model_type=None, model_size="ccl2048", input_size=2048, drop_out
                          dropout=drop_out, output_class=n_classes, similarity_method="Cosine",
                            aggregation_method="mean")
     elif model_type == "PhiHER2":
-        model = ProtoTransformer(feature_size=input_size, embed_size=512, hidden_size=128, num_head=1,
+        model = PhiHER2model(feature_size=input_size, embed_size=512, hidden_size=128, num_head=1,
                                  num_cluster=n_cluster, inst_num=top_num_inst, inst_num_twice=top_num_inst_twice, random_inst=False,
                                  attn_dropout=drop_out, dropout=drop_out, output_class=n_classes,
                                  cls_method="cls_keep_prototype_dim", abmil_branch=False, 

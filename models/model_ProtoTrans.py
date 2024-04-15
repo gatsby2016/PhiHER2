@@ -450,9 +450,9 @@ class inst_selector(nn.Module):
     
 
 """
-cluster-Prototypes-based Transformer for cls.
+cluster-Prototypes-based model for cls.
 """
-class ProtoTransformer(nn.Module):
+class PhiHER2model(nn.Module):
     def __init__(self, feature_size=2048, embed_size=512, hidden_size=256, num_head=4,
                  num_cluster=64, inst_num = None, inst_num_twice=None, random_inst=False,
                  attn_dropout=0.1, dropout=0.25, output_class=2,

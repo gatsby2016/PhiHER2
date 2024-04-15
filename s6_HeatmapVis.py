@@ -14,7 +14,7 @@ from math import floor
 from utils.eval_utils import initiate_model as initiate_model
 from models.model_CLAM import CLAM_MB, CLAM_SB
 from models.model_ABMIL import ABMIL
-from models.model_ProtoTrans import ProtoTransformer
+from models.model_ProtoTrans import PhiHER2model
 
 
 from types import SimpleNamespace
@@ -48,7 +48,7 @@ def infer_single_slide(model, features, label, reverse_label_dict, k=1, prototyp
 	with torch.no_grad():
 		if isinstance(model, (CLAM_SB, CLAM_MB, ABMIL)):
 			logits, Y_prob, Y_hat, A, results_dict = model(features, train=False)
-		elif isinstance(model, ProtoTransformer):
+		elif isinstance(model, PhiHER2model):
 			model.inst_num_twice = None
 			logits, Y_prob, Y_hat, A, results_dict = model(features, prototype=prototype_feat)
 
