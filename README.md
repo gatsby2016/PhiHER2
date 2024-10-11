@@ -1,9 +1,9 @@
 # PhiHER2: Phenotype-informed weakly supervised model for HER2 status prediction from WSIs
 
-> [**PhiHER2: Phenotype-informed weakly supervised model for HER2 status prediction from pathological images**]() <br>
+> [**PhiHER2: Phenotype-informed weakly supervised model for HER2 status prediction from pathological images**](https://doi.org/10.1093/bioinformatics/btae236) <br>
 > Chaoyang Yan, Jialiang Sun, Yiming Guan, Jiuxin Feng, Hong Liu* and Jian Liu*. <br>
 > Nankai University, Tianjin Medical University Cancer Institute & Hospital <br>
-> ISMB 2024 <br>
+> ISMB2024 / Bioinformatics <br>
 
 
 ![overview](docs/github_overview.png)
@@ -349,5 +349,22 @@ Our code is developed on the top of [CLAM](https://github.com/mahmoodlab/CLAM). 
 
 (cheers to the community as well)
 
-If you found our work useful in your research, please consider citing our works(s) at:
+If you find our work useful in your research, please consider citing our work and giving this repo a star. Thank you~
 
+```
+@article{10.1093/bioinformatics/btae236,
+    author = {Yan, Chaoyang and Sun, Jialiang and Guan, Yiming and Feng, Jiuxin and Liu, Hong and Liu, Jian},
+    title = "{PhiHER2: phenotype-informed weakly supervised model for HER2 status prediction from pathological images}",
+    journal = {Bioinformatics},
+    volume = {40},
+    number = {Supplement_1},
+    pages = {i79-i90},
+    year = {2024},
+    month = {06},
+    issn = {1367-4811},
+    doi = {10.1093/bioinformatics/btae236},
+    url = {https://doi.org/10.1093/bioinformatics/btae236},
+    eprint = {https://academic.oup.com/bioinformatics/article-pdf/40/Supplement\_1/i79/58354990/btae236.pdf},
+}
+
+```
