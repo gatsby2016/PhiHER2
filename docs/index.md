@@ -6,8 +6,9 @@
 > ISMB2024 / Bioinformatics <br>
 
 
-![overview](github_overview.png)
-
+<div align="center">
+	<img src="github_overview.png" alt="Editor" width="75%">
+</div>
 
 
 ## WHY and WHAT WE DO   
@@ -48,9 +49,13 @@ PhiHER2 significantly outperforms existing methods on real-world datasets.
 
 Interpretability analyses of both phenotypes and WSIs provide explicit insights into the heterogeneity of morphological patterns associated with molecular HER2 status.
 
-![wsi_heatmap](github_phenotypes.png)
+<div align="center">
+	<img src="github_phenotypes.png" alt="Editor" width="75%">
+</div>
 
-![wsi_heatmap](github_wsi_heatmap.png)
+<div align="center">
+	<img src="github_wsi_heatmap.png" alt="Editor" width="75%">
+</div>
 
 
 # User Guide
